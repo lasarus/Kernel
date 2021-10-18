@@ -56,55 +56,6 @@ GDT_ptr:
 .section .text
 
 	.code32
-write_string:
-	# String location is in %eax
-	movl $0xB8000, %ecx
-print_loop:	
-	movb (%eax), %bl
-	testb %bl, %bl
-
-	je end_loop
-
-	movb %bl, (%ecx)
-	movb $0x04, 1(%ecx)
-	add $2, %ecx
-	add $1, %eax
-	jmp print_loop
-end_loop:	
-	ret
-
-write_number:
-	# Number is in %eax
-	movl $0xB8000, %ebx
-	movb $32, %cl
-
-print_char:	
-	testb %cl, %cl
-	je end_char_loop
-
-	subb $4, %cl
-
-	movl %eax, %edx
-	shr %cl, %edx
-	andl $0xf, %edx
-
-	cmpl $11, %edx
-jl skip
-	addl $7, %edx
-skip:	
-
-	addl $48, %edx
-
-	movb %dl, (%ebx)
-	addl $2, %ebx
-
-	jmp print_char
-end_char_loop:	
-	ret
-
-string:
-	.string "Hello World!"
-
 	.global _start
 _start:
 	movl $stack_top, %esp
