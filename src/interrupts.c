@@ -3,11 +3,6 @@
 
 #include "common.h"
 
-struct {
-	uint16_t	limit;
-	uint64_t	base;
-} __attribute__((packed)) idtr;
-
 struct interrupt_frame_s;
 
 __attribute__((interrupt))
@@ -120,9 +115,6 @@ void interrupts_init(void) {
 	outb(0x21, 0x0);
 	outb(0xA1, 0x0);
 
-	idtr.base = (uint64_t)idt;
-	idtr.limit = (uint16_t)(sizeof(idt) - sizeof(*idt));
-
 	for (unsigned i = 0; i < COUNTOF(isr_table); i++) {
 		if (!isr_table[i])
 			isr_table[i] = unhandled_interrupt;
@@ -132,6 +124,8 @@ void interrupts_init(void) {
 		idt_set_descriptor(idt + i, isr_table[i], 0x8E);
     }
 
-    __asm__ volatile ("lidt %0" : : "m"(idtr)); // load the new IDT
-    __asm__ volatile ("sti"); // set the interrupt flag
+	load_idt(&(struct {
+		uint16_t limit;
+		uint64_t base;
+	} __attribute__((packed))) { sizeof idt - sizeof *idt, (uint64_t)idt });
 }

@@ -118,4 +118,8 @@ hang_kernel:
 	cli
 	hlt
 	jmp hang_kernel
-	
+	.global load_idt
+load_idt:	
+	lidt (%rdi)
+	sti
+	retq
