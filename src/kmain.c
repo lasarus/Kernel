@@ -1,18 +1,24 @@
 #include "common.h"
 #include "vga_text.h"
+#include "multiboot.h"
 
 #include "interrupts.h"
 
-void kmain(void) {
-
+void kmain(uint32_t magic, struct multiboot *mb) {
 	clear_screen();
+
+	print_hex(magic);
 	print("Kernel successfully booted into long mode.\n");
 
 	interrupts_init();
 	print("IDT initialized.\n");
 
-	for (unsigned int i = 0;;i++) {
-		volatile uint8_t *display = (void *)0xB8000;
-		display[0] = "|/-\\"[i % 5];
+	struct multiboot_module *modules = (void *)(uint64_t)mb->mods_addr;
+
+	for (unsigned i = 0; i < mb->mods_count; i++) {
+		for (char *it = (char *)(uint64_t)modules[i].mod_start;
+			 it < (char *)(uint64_t)modules[i].mod_end; it++) {
+			print_char(*it);
+		}
 	}
 }

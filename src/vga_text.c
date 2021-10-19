@@ -57,8 +57,32 @@ void print_int(int num) {
 		buffer[0] = '0';
 		idx++;
 	}
-		
+	
 	for (idx--; idx >= 0; idx--) {
 		print_char(buffer[idx]);
 	}
+	update_cursor();
+}
+
+void print_hex(uint64_t num) {
+	char buffer[16];
+	int idx = 0;
+	for (; num; num /= 16) {
+		int digit = num % 16;
+		if (digit < 10) {
+			buffer[idx++] = digit + '0';
+		} else {
+			buffer[idx++] = (digit - 10) + 'A';
+		}
+	}
+
+	if (idx == 0) {
+		buffer[0] = '0';
+		idx++;
+	}
+	
+	for (idx--; idx >= 0; idx--) {
+		print_char(buffer[idx]);
+	}
+	update_cursor();
 }

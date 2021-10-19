@@ -58,6 +58,8 @@ GDT_ptr:
 	.code32
 	.global _start
 _start:
+	movl %eax, %edi # Move multiboot magic out of the way.
+	movl %ebx, %esi # Move multiboot data structure out of the way.
 	# Initialze IA-32e mode.
 	# No error handling is done. I assume you are not stupid enough to run this code on a x86
 	# processor. Just like you wouldn't run it on an ARM processor.
@@ -94,6 +96,8 @@ _start:
 long_mode:	
 	# Now we are in long mode for real.
 	movq $stack_top, %rsp
+	movl %esi, %esi
+	movl %edi, %edi
 	xorq %rax, %rax
 	call kmain
 halt:	
