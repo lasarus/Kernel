@@ -112,3 +112,10 @@ inb: # uint8_t inb(uint16_t port)
 	movl %edi, %edx
 	inb %dx, %al
 	retq
+
+	.global hang_kernel
+hang_kernel:
+	cli
+	hlt
+	jmp hang_kernel
+	
