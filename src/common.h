@@ -9,7 +9,7 @@ typedef unsigned long uint64_t;
 void outb(uint16_t port, uint8_t val);
 uint8_t inb(uint16_t port);
 void hang_kernel(void);
-void load_idt(void *ptr);
+void load_idt(uint16_t limit, void *base);
 
 #define COUNTOF(X) (sizeof (X) / sizeof (*X))
 

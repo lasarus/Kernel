@@ -124,8 +124,5 @@ void interrupts_init(void) {
 		idt_set_descriptor(idt + i, isr_table[i], 0x8E);
     }
 
-	load_idt(&(struct {
-		uint16_t limit;
-		uint64_t base;
-	} __attribute__((packed))) { sizeof idt - sizeof *idt, (uint64_t)idt });
+	load_idt(sizeof idt, idt);
 }
