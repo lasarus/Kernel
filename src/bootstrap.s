@@ -58,12 +58,6 @@ GDT_ptr:
 	.code32
 	.global _start
 _start:
-	movl $stack_top, %esp
-
-	# Write red B to screen to show that we are alive.
-	movb $66, 0xB8000
-	movb $0x04, 0xB8001
-
 	# Initialze IA-32e mode.
 	# No error handling is done. I assume you are not stupid enough to run this code on a x86
 	# processor. Just like you wouldn't run it on an ARM processor.
@@ -93,7 +87,7 @@ _start:
 	movl %eax, %cr0
 
 	lgdt GDT_ptr
-	ljmp  $0x8, $long_mode
+	ljmp $0x8, $long_mode
 
 .code64
 	.global kmain
