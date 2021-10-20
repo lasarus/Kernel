@@ -1,8 +1,21 @@
-.section .multiboot
-	.align 4
-	.long 0x1BADB002
-	.long 3
-	.long -(0x1BADB002 + 3)
+	.section .multiboot
+	.align  8
+
+multiboot:
+	.set MAGIC, 0x1BADB002
+	.set ALIGN, 1
+	.set MEMINFO, 2
+	.set MANUAL_MEMORY, 0x10000
+	.set FLAGS, (ALIGN | MEMINFO | MANUAL_MEMORY)
+
+	.long MAGIC
+	.long FLAGS
+	.long -(MAGIC + FLAGS)
+	.long multiboot
+	.long load_addr
+	.long _edata
+	.long _end
+	.long _start
 
 .section .bss
 	.align 16
@@ -53,7 +66,7 @@ GDT_ptr:
 	.word . - GDT - 1
 	.long GDT
 
-.section .text
+.section .bootstrap.text
 
 	.code32
 	.global _start
@@ -91,6 +104,7 @@ _start:
 	lgdt GDT_ptr
 	ljmp $0x8, $long_mode
 
+	.section .text
 .code64
 	.global kmain
 long_mode:	
