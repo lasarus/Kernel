@@ -119,8 +119,8 @@ long_mode:
 	# Second argument to kmain is a pointer, turn it into higher half pointer.
 	addq $HIGHER_HALF_OFFSET, %rsi
 
-	movq $kmain, %rax
-	callq *%rax
+	xorq %rax, %rax # %rax holds number of SSE registers, according to Sys-V.
+	call kmain
 
 halt:
 	hlt
