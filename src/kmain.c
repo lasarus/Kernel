@@ -7,8 +7,8 @@
 void kmain(uint32_t magic, struct multiboot *mb) {
 	clear_screen();
 
-	print_hex(magic);
 	print("Kernel successfully booted into long mode.\n");
+	int var = 1;
 
 	interrupts_init();
 	print("IDT initialized.\n");

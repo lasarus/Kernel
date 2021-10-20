@@ -1,7 +1,9 @@
-	.section .multiboot
-	.align  8
+	.global kmain
 
-multiboot:
+	.section .multiboot, "a"
+
+	.align  4096
+multiboot_header:
 	.set MAGIC, 0x1BADB002
 	.set ALIGN, 1
 	.set MEMINFO, 2
@@ -11,20 +13,13 @@ multiboot:
 	.long MAGIC
 	.long FLAGS
 	.long -(MAGIC + FLAGS)
-	.long multiboot
+	.long multiboot_header
 	.long load_addr
 	.long _edata
 	.long _end
 	.long _start
 
-.section .bss
-	.align 16
-stack_bottom:
-	.skip 16348
-	.align 16
-stack_top:	
-
-.section .data
+.section .bootstrap.bss
 	.align 4096
 PDPT_table:	
 	# Only one entry.
@@ -39,10 +34,10 @@ PDPT_table:
 	# 51:M Reserved
 	# 62:52 Ignored
 	# 63 XD
-	.quad 0x1 | 0x2 | 0x4 | 0x80
+	.zero 8 * 512
 	.align 4096
 PML4_table:	
-	# Only one entry.
+	# One entry for lower, one entry for higher. Both pointing to the same PDPL_table.
 	# 0x1 Present
 	# 0x2 R/W
 	# 0x4 U/S
@@ -53,18 +48,16 @@ PML4_table:
 	# 51:M Reserved
 	# 62:52 Ignored
 	# 63 XD
-	.quad (0x1 | 0x2 | 0x4) # Has to be initialized at runtime with the correct address to PDPT_table
+	.zero 8 * 512
 
-	.align 4096
 GDT:
-	.quad 0x0000000000000000 # Null descriptor
-	.quad 0x00209A0000000000 # code descriptor
-	.quad 0x0000920000000000 # data descriptor
+	.quad 0 # Null descriptor
+	.quad 0 # code descriptor (not initialized)
+	.quad 0 # data descriptor (not initialized)
 
-	.align 4
 GDT_ptr:	
-	.word . - GDT - 1
-	.long GDT
+	.word 0
+	.long 0
 
 .section .bootstrap.text
 
@@ -73,73 +66,69 @@ GDT_ptr:
 _start:
 	movl %eax, %edi # Move multiboot magic out of the way.
 	movl %ebx, %esi # Move multiboot data structure out of the way.
-	# Initialze IA-32e mode.
-	# No error handling is done. I assume you are not stupid enough to run this code on a x86
-	# processor. Just like you wouldn't run it on an ARM processor.
-	movl $PDPT_table, %eax
-	orl PML4_table, %eax
-	movl %eax, PML4_table
 
-	# 1. Start from protected mode, disable paging....
+	# Initialize page tables.
+	movl $((0x1 | 0x2 | 0x4 | 0x80)), PDPT_table
+	movl $((0x1 | 0x2 | 0x4 | 0x80)), PDPT_table + 8 * 511
+	movl $((0x1 | 0x2 | 0x4) + PDPT_table), PML4_table
+	movl $((0x1 | 0x2 | 0x4) + PDPT_table), PML4_table + 8 * 511
+
+	# Initailize GDT.
+	movl $0x00209A00, GDT + 8 + 4
+	movl $0x00009200, GDT + 16 + 4
+
+	# Initialize GDT_ptr.
+	movw $(3 * 8 - 1), GDT_ptr
+	movl $GDT, GDT_ptr + 2
+
+	# Initialze IA-32e mode.
+	# No error handling is done. I assume you are not stupid enough to run this code on a 32 bit
+	# processor. Just like you wouldn't run it on an ARM processor.
+
+	# 1. Start from protected mode, disable paging. (Already done by bootloader.)
 	# 2. Enable PAE by setting CR4.PAE = 1
 	movl %cr4, %eax
 	orl $0x20, %eax
 	# orl $0xA0, %eax
 	movl %eax, %cr4
-	# 3. Load CR3 with the physical base address of PML4
+	# 3. Load CR3 with the physical base address of PML4.
 	movl $PML4_table, %eax
 	movl %eax, %cr3
-	# 4. Enable IA-32e mode by setting IA32_EFER.LME = 1
+	# 4. Enable IA-32e mode by setting IA32_EFER.LME = 1.
 	movl $0xC0000080, %ecx
 	rdmsr
 	#movl $0x100, %eax
 	#movl $0, %edx
 	bts $8, %eax
 	wrmsr
-	# 5. Enable paging by setting CR0.PG = 1
+	# 5. Enable paging by setting CR0.PG = 1.
 	movl %cr0, %eax
 	orl $0x80000000, %eax
 	movl %eax, %cr0
 
 	lgdt GDT_ptr
-	ljmp $0x8, $long_mode
 
-	.section .text
-.code64
-	.global kmain
+	# We set up the GDT so that GDT+8 is the code segment.
+	# Doing a long jump will put us into long mode.
+	ljmp $8, $long_mode
+
+	.code64
 long_mode:	
-	# Now we are in long mode for real.
 	movq $stack_top, %rsp
-	movl %esi, %esi
-	movl %edi, %edi
-	xorq %rax, %rax
-	call kmain
-halt:	
+
+	# Second argument to kmain is a pointer, turn it into higher half pointer.
+	addq $HIGHER_HALF_OFFSET, %rsi
+
+	movq $kmain, %rax
+	callq *%rax
+
+halt:
 	hlt
 	jmp halt
 
-	.global outb
-outb: # void outb(uint16_t port, uint8_t val)
-	movl %esi, %eax
-	movl %edi, %edx
-	outb %al, %dx
-	retq
-
-	.global inb
-inb: # uint8_t inb(uint16_t port)
-	movl %edi, %edx
-	inb %dx, %al
-	retq
-
-	.global hang_kernel
-hang_kernel:
-	cli
-	hlt
-	jmp hang_kernel
-	.global load_idt
-load_idt: # void load_idt(uint16_t limit, void *base)
-	movw %di, -16(%rsp) # Red-zone is not really needed since interrupts are not enabled.
-	movq %rsi, -14(%rsp)
-	lidtq -16(%rsp)
-	sti
-	retq
+.section .bss
+	.align 16
+stack_bottom:
+	.skip 16348
+	.align 16
+stack_top:	
