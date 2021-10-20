@@ -7,31 +7,45 @@ struct interrupt_frame_s;
 
 __attribute__((interrupt))
 void unhandled_interrupt(struct interrupt_frame_s *frame) {
+	(void)frame;
 	print("Unhandled interrupt.\n");
 	hang_kernel();
 }
 
 __attribute__((interrupt))
 void exception_double_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
-	print("Double fault.\n");
+	(void)frame;
+	print("Double fault.\nWith error code:");
+	print_int((int)error_code);
 	hang_kernel();
 }
 
 __attribute__((interrupt))
 void exception_general_protection_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
+	(void)frame;
 	print("General protection fault.\nWith error code: ");
 	print_int((int)error_code);
 	hang_kernel();
 }
 
 __attribute__((interrupt))
+void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
+	(void)frame;
+	print("Page fault.\nWith error code: ");
+	print_int((int)error_code);
+	hang_kernel();
+}
+
+__attribute__((interrupt))
 void irq_master_reset(struct interrupt_frame_s *frame) {
+	(void)frame;
 	print("IRQ master");
 	outb(0x20, 0x20);
 }
 
 __attribute__((interrupt))
 void irq_slave_reset(struct interrupt_frame_s *frame) {
+	(void)frame;
 	print("IRQ slave");
 	outb(0xA0, 0x20);
 	outb(0x20, 0x20);
@@ -39,6 +53,7 @@ void irq_slave_reset(struct interrupt_frame_s *frame) {
 
 __attribute__((interrupt))
 void irq_timer(struct interrupt_frame_s *frame) {
+	(void)frame;
 	/* print("Timer "); */
 	/* static int tick = 0; */
 	/* print_int(tick++); */
@@ -50,21 +65,27 @@ void irq_timer(struct interrupt_frame_s *frame) {
 
 __attribute__((interrupt))
 void irq_keyboard(struct interrupt_frame_s *frame) {
+	(void)frame;
 	unsigned char scan_code = inb(0x60);
 	print_int(scan_code);
 
 	outb(0x20, 0x20);
 }
 
+void syscall_handler(void);
+
 enum {
 	EXCEPTION_DOUBLE_FAULT = 8,
 	EXCEPTION_GENERAL_PROTECTION_FAULT = 13,
+	EXCEPTION_PAGE_FAULT = 14,
 	IRQ0 = 32,
 };
 
-void* isr_table[] = {
+typedef void (*func_ptr)();
+func_ptr isr_table[] = {
 	[EXCEPTION_DOUBLE_FAULT] = exception_double_fault,
 	[EXCEPTION_GENERAL_PROTECTION_FAULT] = exception_general_protection_fault,
+	[EXCEPTION_PAGE_FAULT] = exception_page_fault,
 	[IRQ0+0] = irq_timer,
 	[IRQ0+1] = irq_keyboard,
 	[IRQ0+2] = irq_master_reset,
@@ -81,6 +102,7 @@ void* isr_table[] = {
 	[IRQ0+13] = irq_slave_reset,
 	[IRQ0+14] = irq_slave_reset,
 	[IRQ0+15] = irq_slave_reset,
+	[0x80] = syscall_handler,
 };
 
 _Alignas(0x10) struct idt_entry {
@@ -93,7 +115,7 @@ _Alignas(0x10) struct idt_entry {
 	uint32_t reserved;
 } __attribute((packed)) idt[COUNTOF(isr_table)];
 
-void idt_set_descriptor(struct idt_entry *entry, void* isr, uint8_t flags) {
+void idt_set_descriptor(struct idt_entry *entry, func_ptr isr, uint8_t flags) {
     entry->offset_low = (uint64_t)isr & 0xFFFF;
     entry->segment_selector = 0x8;
     entry->ist = 0;

@@ -119,8 +119,17 @@ long_mode:
 	# Second argument to kmain is a pointer, turn it into higher half pointer.
 	addq $HIGHER_HALF_OFFSET, %rsi
 
-	xorq %rax, %rax # %rax holds number of SSE registers, according to Sys-V.
-	call kmain
+	# Manual call to kmain is needed, since %rip will not point to a valid
+	# address after remapping lower half of memory. Push halt + HIGHER_HALF_OFFSET
+	# to stack, such that kmain returns to halt.
+	movq $halt, %rax
+	addq $HIGHER_HALF_OFFSET, %rax
+	pushq %rax
+
+	# %rax holds number of passed SSE registers, according to calling convention.
+	xorq %rax, %rax
+
+	jmp kmain
 
 halt:
 	hlt

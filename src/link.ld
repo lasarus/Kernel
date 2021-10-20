@@ -16,7 +16,9 @@ SECTIONS {
 
 	.text : AT(ADDR(.text) - HIGHER_HALF_OFFSET) {
 		*(.text)
+		*(.text.*)
 		*(.rodata)
+		*(.rodata.*) /* ?? */
 	}
 
 	.data : AT(ADDR(.data) - HIGHER_HALF_OFFSET) {

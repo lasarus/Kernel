@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-static volatile uint8_t * const display = (void *)0xB8000;
+static volatile uint8_t * const display = (void *)(0xB8000 + HIGHER_HALF_OFFSET);
 static int x = 0, y = 0;
 
 void update_cursor(void) {
