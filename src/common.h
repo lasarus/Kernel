@@ -6,9 +6,12 @@ typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
 typedef unsigned long uint64_t;
 
+#define UINT64_MAX 0xffffffffffffffff
+
 void outb(uint16_t port, uint8_t val);
 uint8_t inb(uint16_t port);
 void hang_kernel(void);
+void sleep_kernel(void);
 void load_idt(uint16_t limit, void *base);
 void load_gdt(uint16_t limit, void *base);
 void load_tss(uint16_t gdt_entry);

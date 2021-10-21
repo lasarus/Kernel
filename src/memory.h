@@ -4,11 +4,11 @@
 #include "multiboot.h"
 
 // Returns pointer to beginning of a free 4KiB chunk of memory.
+typedef int page_table_t;
+
 void *memory_alloc(void);
 void memory_free(void *ptr);
-void memory_init(struct multiboot *mb);
-
-typedef int page_table_t;
+page_table_t memory_init(struct multiboot *mb);
 
 page_table_t memory_new_page_table(void);
 void memory_switch_page_table(page_table_t table);

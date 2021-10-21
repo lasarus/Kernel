@@ -18,6 +18,11 @@ hang_kernel:
 	hlt
 	jmp hang_kernel
 
+	.global sleep_kernel
+sleep_kernel:	
+	hlt
+	retq
+
 	.global load_idt
 load_idt: # void load_idt(uint16_t limit, void *base)
 	movw %di, -16(%rsp) # Red-zone is not really needed since interrupts are not enabled.

@@ -1,5 +1,6 @@
 #include "common.h"
 #include "vga_text.h"
+#include "scheduler.h"
 
 // I'm trying to emulate Linux syscalls a little bit.
 void syscall(uint64_t rax, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
@@ -19,4 +20,6 @@ void syscall(uint64_t rax, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t
 		print_int(rax);
 		print("\n");
 	}
+
+	scheduler_suspend();
 }

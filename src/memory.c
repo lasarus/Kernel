@@ -177,7 +177,7 @@ struct page_table_table {
 struct page_table_table *tables;
 struct pml4 *current_pml4;
 
-void memory_init(struct multiboot *mb) {
+page_table_t memory_init(struct multiboot *mb) {
 	head = &last_elem;
 
 	uint64_t first_free = (uint64_t)&_end;
@@ -206,7 +206,7 @@ void memory_init(struct multiboot *mb) {
 	}
 
 	uint64_t tss_base = (uint64_t)&tss;
-	uint32_t tss_limit = sizeof tss;
+	uint32_t tss_limit = sizeof tss - 1;
 
 	gdt.tss_descriptor.limit_low = tss_limit;
 	gdt.tss_descriptor.limit_high = tss_limit >> 16;
@@ -218,8 +218,10 @@ void memory_init(struct multiboot *mb) {
 	load_gdt(sizeof gdt - 1, (void *)&gdt);
 
 	tables = memory_alloc();
-	tables->n_tables = 0;
-	// Init page table table
+	tables->n_tables = 1;
+	tables->pml4_pointers[0] = (void *)((uint64_t)&kernel_pml4_table - HIGHER_HALF_OFFSET + HIGHER_HALF_IDENTITY);
+
+	return 0;
 }
 
 page_table_t memory_new_page_table(void) {
@@ -295,8 +297,6 @@ void memory_allocate_range(uint64_t base, uint64_t size, int user) {
 
 void set_kernel_stack(uint64_t stack) {
 	tss.rsp0 = stack;
-	print("Setting stack to: ");
-	print_hex(stack);
-	print("\n");
+	gdt.tss_descriptor.type = 9;
 	load_tss(40);
 }

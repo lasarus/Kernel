@@ -38,6 +38,21 @@ void print_char(char c) {
 			y++;
 		}
 	}
+
+	if (y >= 24) {
+		// Move everything up one step.
+		for (int i = 0; i < 25; i++) {
+			for (int j = 0; j < 80; j++) {
+				if (i == 24) {
+					display[(i * 80 + j) * 2] = ' ';
+					display[(i * 80 + j) * 2 + 1] = 0x0f;
+				} else {
+					display[(i * 80 + j) * 2] = display[((i + 1) * 80 + j) * 2];
+				}
+			}
+		}
+		y--;
+	}
 }
 
 void print(const char *str) {

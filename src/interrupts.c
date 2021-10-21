@@ -1,5 +1,6 @@
 #include "interrupts.h"
 #include "vga_text.h"
+#include "scheduler.h"
 
 #include "common.h"
 
@@ -59,13 +60,15 @@ void irq_slave_reset(struct interrupt_frame_s *frame) {
 	outb(0x20, 0x20);
 }
 
+uint64_t timer = 0;
+
 __attribute__((interrupt))
 void irq_timer(struct interrupt_frame_s *frame) {
 	(void)frame;
-	/* print("Timer "); */
-	/* static int tick = 0; */
-	/* print_int(tick++); */
-	/* print("\n"); */
+
+	timer++;
+	//scheduler_suspend();
+	scheduler_update();
 
 	outb(0xA0, 0x20);
 	outb(0x20, 0x20);
