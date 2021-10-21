@@ -4,7 +4,8 @@ _start:
 	movq $msg_len, %rdx
 	movq $msg, %rsi
 	int $0x80
+	jmp _start
 	retq
-msg:	.ascii "Hello world from userland (although still ring 0)!\n"
+msg:	.ascii "Hello world from ring 3!\n"
 	.set msg_len, . - msg
 	.global print_interrupt

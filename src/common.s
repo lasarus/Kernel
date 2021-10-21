@@ -34,9 +34,19 @@ load_gdt: # void load_gdt(uint16_t limit, void *base)
 	sti
 	retq
 
+	.global load_tss
+load_tss:	 # void load_tss(uint16_t gdt_entry)
+	ltr %di
+	retq
+
 	.global load_cr3
 load_cr3: # void load_cr3(void *pml4_ptr);
 	movq %rdi, %cr3
+	retq
+
+	.global get_cr2
+get_cr2: # uint64_t get_cr2(void);
+	movq %cr2, %rax
 	retq
 
 msg:	.ascii "Hello World!\n"

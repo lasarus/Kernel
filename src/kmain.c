@@ -3,6 +3,7 @@
 #include "multiboot.h"
 #include "memory.h"
 #include "interrupts.h"
+#include "taskswitch.h"
 
 struct process {
 	int alive;
@@ -23,19 +24,30 @@ struct process *init_process(uint8_t *data, uint64_t size) {
 
 	memory_switch_page_table(process->pages);
 
-	uint64_t virt_mem = 0x100000;
-	for (uint64_t page = 0; page < size; page += 4096) {
-		uint8_t *chunk = memory_alloc();
+	uint8_t *virt_mem = (void *)0x100000;
+	memory_allocate_range((uint64_t)virt_mem, size, 1);
+	for (unsigned i = 0; i < size; i++)
+		virt_mem[i] = data[i];
 
-		for (unsigned i = 0; i < 4096; i++) {
-			chunk[i] = data[page + i];
-		}
+	// Set up kernel stack. Probably only needs one page for now.
+	// Set up straight below the 1GiB upper segment of memory.
+	// Or maybe not? It is probably better to have the stack in upper half? right?
+	// Below 1GiB would be upper half anyways.
 
-		memory_page_add(virt_mem, chunk);
-		virt_mem += 4096;
-	}
+	const uint64_t kernel_stack_size = 4096 * 4;
+	const uint64_t kernel_stack_pos = HIGHER_HALF_OFFSET - kernel_stack_size * 1;
+	memory_allocate_range(kernel_stack_pos, kernel_stack_size, 0);
+
+	// Set up user stack.
+	const uint64_t user_stack_size = 4 * MEBIBYTE;
+	const uint64_t user_stack_pos = GIBIBYTE;
+	memory_allocate_range(user_stack_pos, user_stack_size, 1);
 
 	process->alive = 1;
+
+	set_kernel_stack(kernel_stack_pos + kernel_stack_size - 128); // Stack grows downwards.
+	usermode_jump(user_stack_pos, kernel_stack_pos, 0x100000);
+
 	return process;
 }
 
@@ -57,27 +69,9 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 		uint8_t *data = (uint8_t *)(modules[i].mod_start + HIGHER_HALF_OFFSET);
 		init_process(data, modules[i].mod_end - modules[i].mod_start);
 
-		void (*func)(void) = (void (*)(void))0x100000;
-		func();
+		//usermode_jump(
+		//((void (*)(void))0x100000)();
 	}
 
-	page_table_t user1_table = memory_new_page_table();
-	page_table_t user2_table = memory_new_page_table();
-	memory_switch_page_table(user1_table);
-
-	uint8_t *addr = (uint8_t *)0xBBBB10000;
-	uint8_t *mem1 = memory_alloc();
-	memory_page_add((uint64_t)addr, mem1);
-
-	*addr = 10;
-
-	memory_switch_page_table(user2_table);
-	uint8_t *mem2 = memory_alloc();
-	memory_page_add((uint64_t)addr, mem2);
-
-	*addr = 40;
-
-	print_int(*addr);
-	memory_switch_page_table(user1_table);
-	print_int(*addr);
+	print("End of kmain.\n");
 }

@@ -3,7 +3,9 @@
 
 #include "common.h"
 
-struct interrupt_frame_s;
+struct interrupt_frame_s {
+	uint64_t rip, cs, rflags, rsp, ss;
+};
 
 __attribute__((interrupt))
 void unhandled_interrupt(struct interrupt_frame_s *frame) {
@@ -25,14 +27,20 @@ void exception_general_protection_fault(struct interrupt_frame_s *frame, uint64_
 	(void)frame;
 	print("General protection fault.\nWith error code: ");
 	print_int((int)error_code);
+	print("\n At instruction: ");
+	print_hex(frame->rip);
 	hang_kernel();
 }
 
 __attribute__((interrupt))
 void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
 	(void)frame;
+	uint64_t cr2 = get_cr2();
 	print("Page fault.\nWith error code: ");
 	print_int((int)error_code);
+	print("\n CRT2: ");
+	print_hex(cr2);
+	print("\n");
 	hang_kernel();
 }
 
@@ -143,7 +151,10 @@ void interrupts_init(void) {
 	}
 
 	for (unsigned i = 0; i < COUNTOF(idt); i++) {
-		idt_set_descriptor(idt + i, isr_table[i], 0x8E);
+		if (i == 0x80)
+			idt_set_descriptor(idt + i, isr_table[i], 0xEE);
+		else
+			idt_set_descriptor(idt + i, isr_table[i], 0x8E);
     }
 
 	load_idt(sizeof idt, idt);
