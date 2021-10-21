@@ -8,10 +8,28 @@ struct interrupt_frame_s {
 	uint64_t rip, cs, rflags, rsp, ss;
 };
 
+struct task {
+	uint64_t rip, gp_regs[16];
+	uint64_t cr3;
+	uint8_t is_usermode;
+
+	uint8_t sleep;
+	uint64_t sleep_until;
+	// TODO: XMM0-15
+
+	page_table_t pages;
+};
+
+extern int n_tasks;
+extern struct task tasks[16];
+extern struct task *current_task;
+
 __attribute__((interrupt))
 void unhandled_interrupt(struct interrupt_frame_s *frame) {
 	(void)frame;
-	print("Unhandled interrupt.\n");
+	print("\nCurrent task: ");
+	print_int(current_task - tasks);
+	print("\nUnhandled interrupt.\n");
 	hang_kernel();
 }
 
@@ -37,10 +55,19 @@ __attribute__((interrupt))
 void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
 	(void)frame;
 	uint64_t cr2 = get_cr2();
+	uint64_t cr3 = get_cr3();
 	print("Page fault.\nWith error code: ");
 	print_int((int)error_code);
 	print("\n CRT2: ");
 	print_hex(cr2);
+	print("\n usermode: ");
+	print_hex(tasks[1].gp_regs[4]);
+	print(", ");
+	print_hex(tasks[2].gp_regs[4]);
+	print("\n CRT3: ");
+	print_hex(cr3);
+	print("\n RIP: ");
+	print_hex(frame->rip);
 	print("\n");
 	hang_kernel();
 }
@@ -63,15 +90,15 @@ void irq_slave_reset(struct interrupt_frame_s *frame) {
 uint64_t timer = 0;
 
 __attribute__((interrupt))
-void irq_timer(struct interrupt_frame_s *frame) {
+void irq_timer(volatile struct interrupt_frame_s *frame) {
 	(void)frame;
 
 	timer++;
-	//scheduler_suspend();
-	scheduler_update();
 
 	outb(0xA0, 0x20);
 	outb(0x20, 0x20);
+
+	scheduler_update();
 }
 
 __attribute__((interrupt))

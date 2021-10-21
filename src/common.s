@@ -54,6 +54,11 @@ get_cr2: # uint64_t get_cr2(void);
 	movq %cr2, %rax
 	retq
 
+	.global get_cr3
+get_cr3: # uint64_t get_cr2(void);
+	movq %cr3, %rax
+	retq
+
 msg:	.ascii "Hello World!\n"
 	.set msg_len, . - msg
 	.global print_interrupt

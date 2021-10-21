@@ -15,11 +15,16 @@ void syscall(uint64_t rax, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t
 		}
 	} break;
 
+	case 35: {
+		// Not really like linux, this just sleeps for the number of ticks determined by arg0.
+		scheduler_sleep(arg0);
+	} break;
+
 	default:
 		print("Got unknown syscall: ");
 		print_int(rax);
 		print("\n");
 	}
 
-	scheduler_suspend();
+	//scheduler_suspend();
 }

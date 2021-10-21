@@ -25,6 +25,7 @@ switch_task_to: # void switch_task_to(struct task *task)
 	# When returning from this function, we shall be back in the task that called it to begin with.
 	# Assuming that we are already in ring 0 when calling this (which is kind of obvious.)
 
+	cli
 	movq current_task, %rax
 	movq $_on_return, 0(%rax)
 	movq %rax, 8 * 1(%rax)
@@ -45,14 +46,17 @@ switch_task_to: # void switch_task_to(struct task *task)
 	movq %r15, 8 * 16(%rax)
 
 	# State is now saved.
+	
+	movq 8 * 17(%rdi), %rax
+	movq %rax, %cr3
 
 	movq %rdi, current_task
 	movq %rdi, %rax
 
-	cmpl $1, 8 * 17(%rax)
+	cmpl $1, 8 * 18(%rax)
 	je _to_userland
 
-	movq 8 * 1(%rax), %rdi
+	# movq 8 * 1(%rax), %rax
 	movq 8 * 2(%rax), %rcx
 	movq 8 * 3(%rax), %rdx
 	movq 8 * 4(%rax), %rbx
@@ -70,16 +74,23 @@ switch_task_to: # void switch_task_to(struct task *task)
 	movq 8 * 16(%rax), %r15
 
 	movq 0(%rax), %rax
+
+	sti
+	retq
 	jmp *%rax
 
 _to_userland:	
-	movl $0, 8 * 17(%rax) # Will no longer be userland.
+	addl $1, 8 * 18(%rax) # Will no longer be userland.
 	movq 8 * 5(%rax), %rdi
 	movq 8 * 0(%rax), %rdx
 
 	pushq $(32 | 3)
 	pushq %rdi # user_stack
-	pushfq # Should be loaded from task data at a later stage.
+	pushfq
+	popq %rax
+	orq $0x200, %rax
+	pushq %rax
+
 	pushq $(24 | 3)
 	pushq %rdx
 

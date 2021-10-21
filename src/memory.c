@@ -82,19 +82,19 @@ void init_kernel_pml4(struct pml4 *pml4) {
 		pml4->entries[i].flags_and_address = 0;
 
 	pml4->entries[511].flags_and_address =
-		(0x1 | 0x2) + ((uint64_t)&kernel_pdpt_table_small - HIGHER_HALF_OFFSET);
+		(0x1 | 0x2 | 0x4) + ((uint64_t)&kernel_pdpt_table_small - HIGHER_HALF_OFFSET);
 	pml4->entries[256].flags_and_address =
-		(0x1 | 0x2) + ((uint64_t)&kernel_pdpt_table_large - HIGHER_HALF_OFFSET);
+		(0x1 | 0x2 | 0x4) + ((uint64_t)&kernel_pdpt_table_large - HIGHER_HALF_OFFSET);
 }
 
 void set_up_higher_identity_paging(void) {
 	for (unsigned i = 0; i < 512; i++)
-		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x80) + (i << 12);
-	kernel_pdpt_table_small.entries[511].flags_and_address = 0x1 | 0x2 | 0x80;
+		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x4 | 0x80) + (i << 12);
+	kernel_pdpt_table_small.entries[511].flags_and_address = 0x1 | 0x2 | 0x4 | 0x80;
 
 	init_kernel_pml4(&kernel_pml4_table);
 
-	load_cr3((void *)((uint64_t)&kernel_pml4_table - HIGHER_HALF_OFFSET));
+	load_cr3((uint64_t)&kernel_pml4_table - HIGHER_HALF_OFFSET);
 	// We have a page table inherited from the bootstrap code.
 }
 
@@ -233,23 +233,21 @@ page_table_t memory_new_page_table(void) {
 	int idx = tables->n_tables++;
 
 	tables->pml4_pointers[idx] = new_table;
-	current_pml4 = new_table;
 
 	return idx;
 }
 
-void memory_switch_page_table(page_table_t table) {
-	load_cr3((void *)((uint64_t)tables->pml4_pointers[table] - HIGHER_HALF_IDENTITY));
-	current_pml4 = tables->pml4_pointers[table];
+uint64_t memory_get_cr3(page_table_t table) {
+	return (uint64_t)tables->pml4_pointers[table] - HIGHER_HALF_IDENTITY;
 }
 
-void memory_page_add(uint64_t virtual_addr, void *high_addr, int user) {
+void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user) {
 	uint16_t a = (virtual_addr >> (12 + 9 * 0)) & 0x1FF;
 	uint16_t b = (virtual_addr >> (12 + 9 * 1)) & 0x1FF;
 	uint16_t c = (virtual_addr >> (12 + 9 * 2)) & 0x1FF;
 	uint16_t d = (virtual_addr >> (12 + 9 * 3)) & 0x1FF;
 
-	struct pml4 *pml4 = current_pml4;
+	struct pml4 *pml4 = tables->pml4_pointers[table];
 
 	struct pdpt *pdpt = 0;
 	if (pml4->entries[d].flags_and_address & 1) {
@@ -288,11 +286,20 @@ void memory_page_add(uint64_t virtual_addr, void *high_addr, int user) {
 	pt->entries[a].flags_and_address = flags | (uint64_t)physical_addr;
 }
 
-void memory_allocate_range(uint64_t base, uint64_t size, int user) {
+void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uint64_t size, int user) {
 	// base must be aligned to 4KiB page.
 
-	for (uint64_t page = 0; page < size; page += 4096)
-		memory_page_add(base + page, memory_alloc(), user);
+	for (uint64_t page = 0; page < size; page += 4096) {
+		uint8_t *new_page = memory_alloc();
+		if (data) {
+			for (unsigned i = 0; i < 4096; i++) {
+				if (page + i >= size)
+					break;
+				new_page[i] = data[page + i];
+			}
+		}
+		memory_page_add(table, base + page, new_page, user);
+	}
 }
 
 void set_kernel_stack(uint64_t stack) {

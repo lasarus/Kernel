@@ -11,9 +11,9 @@ void memory_free(void *ptr);
 page_table_t memory_init(struct multiboot *mb);
 
 page_table_t memory_new_page_table(void);
-void memory_switch_page_table(page_table_t table);
-void memory_page_add(uint64_t virtual_addr, void *high_addr, int user);
-void memory_allocate_range(uint64_t base, uint64_t size, int user);
+void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user);
+void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uint64_t size, int user);
+uint64_t memory_get_cr3(page_table_t table);
 
 void set_kernel_stack(uint64_t stack);
 

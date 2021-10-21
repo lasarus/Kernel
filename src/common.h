@@ -16,8 +16,9 @@ void load_idt(uint16_t limit, void *base);
 void load_gdt(uint16_t limit, void *base);
 void load_tss(uint16_t gdt_entry);
 uint64_t round_up_4096(uint64_t val);
-void load_cr3(void *pml4_ptr);
+void load_cr3(uint64_t pml4_ptr);
 uint64_t get_cr2(void);
+uint64_t get_cr3(void);
 
 void print_interrupt(void);
 
@@ -30,5 +31,7 @@ void print_interrupt(void);
 #define HIGHER_HALF_IDENTITY 0xFFFF800000000000
 
 #define offsetof(type, member)  __builtin_offsetof (type, member)
+
+#define NULL ((void *)0)
 
 #endif

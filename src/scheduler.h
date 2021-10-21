@@ -9,5 +9,6 @@ void scheduler_update(void);
 void scheduler_init(page_table_t kernel_table);
 
 void scheduler_suspend(void);
+void scheduler_sleep(uint64_t ticks);
 
 #endif

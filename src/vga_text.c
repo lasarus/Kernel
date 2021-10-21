@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-static volatile uint8_t * const display = (void *)(0xB8000 + HIGHER_HALF_OFFSET);
+#define DISPLAY ((uint8_t *)(0xB8000 + HIGHER_HALF_OFFSET))
 static int x = 0, y = 0;
 
 void update_cursor(void) {
@@ -19,8 +19,8 @@ void clear_screen(void) {
 	//(*display) = 'K';
 	for (int i = 0; i < 25; i++) {
 		for (int j = 0; j < 80; j++) {
-			display[(i * 80 + j) * 2] = ' ';
-			display[(i * 80 + j) * 2 + 1] = 0x0f;
+			DISPLAY[(i * 80 + j) * 2] = ' ';
+			DISPLAY[(i * 80 + j) * 2 + 1] = 0x0f;
 		}
 	}
 }
@@ -30,10 +30,10 @@ void print_char(char c) {
 		x = 0;
 		y++;
 	} else {
-		display[(y * 80 + x) * 2] = c;
-		display[(y * 80 + x) * 2 + 1] = 0x0f;
+		DISPLAY[(y * 80 + x) * 2] = c;
+		DISPLAY[(y * 80 + x) * 2 + 1] = 0x0f;
 		x++;
-		if (x > 80) {
+		if (x >= 80) {
 			x = 0;
 			y++;
 		}
@@ -44,10 +44,10 @@ void print_char(char c) {
 		for (int i = 0; i < 25; i++) {
 			for (int j = 0; j < 80; j++) {
 				if (i == 24) {
-					display[(i * 80 + j) * 2] = ' ';
-					display[(i * 80 + j) * 2 + 1] = 0x0f;
+					DISPLAY[(i * 80 + j) * 2] = ' ';
+					DISPLAY[(i * 80 + j) * 2 + 1] = 0x0f;
 				} else {
-					display[(i * 80 + j) * 2] = display[((i + 1) * 80 + j) * 2];
+					DISPLAY[(i * 80 + j) * 2] = DISPLAY[((i + 1) * 80 + j) * 2];
 				}
 			}
 		}
