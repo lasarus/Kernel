@@ -7,12 +7,10 @@ void syscall(uint64_t rax, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t
 	(void)arg0, (void)arg1, (void)arg2, (void)arg3, (void)arg4;
 	switch (rax) {
 	case 1: {
-		char *buf = (char *)arg1;
-		uint64_t len = arg2;
+		struct fd_table *fd_table = scheduler_get_fd_table();
+		int file = fd_table_get_file(fd_table, arg0);
 
-		for (uint64_t i = 0; i < len; i++) {
-			print_char(buf[i]);
-		}
+		vfs_write_file(file, (void *)arg1, arg2);
 	} break;
 
 	case 35: {

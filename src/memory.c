@@ -9,7 +9,7 @@ struct memory_list {
 	void *entries[510];
 };
 
-_Static_assert(sizeof(struct memory_list) == 4096, "Inalid size of memory_list.");
+_Static_assert(sizeof(struct memory_list) == 4096, "Invalid size of memory_list.");
 
 struct memory_list *head;
 _Alignas(4096) struct memory_list last_elem;

@@ -3,6 +3,7 @@
 #include "taskswitch.h"
 #include "vga_text.h"
 #include "interrupts.h"
+#include "vfs.h"
 
 struct task {
 	uint64_t rip, gp_regs[16];
@@ -14,6 +15,8 @@ struct task {
 	// TODO: XMM0-15
 
 	page_table_t pages;
+
+	struct fd_table *fd_table;
 };
 
 void switch_task_to(struct task *task);
@@ -23,9 +26,8 @@ struct task tasks[16];
 struct task *current_task;
 
 #define KERNEL_STACK_SIZE (4 * KIBIBYTE)
-#define KERNEL_STACK_POS (510ULL << (9 * 2 + 12))
 
-void scheduler_add_task(uint8_t *data, uint64_t size) {
+void scheduler_add_task(uint8_t *data, uint64_t size, int stdin, int stdout, int stderr) {
 	struct task *task = tasks + n_tasks;
 
 	task->pages = memory_new_page_table();
@@ -33,6 +35,12 @@ void scheduler_add_task(uint8_t *data, uint64_t size) {
 	memory_allocate_range(task->pages, 0x100000, data, size, 1);
 
 	memory_allocate_range(task->pages, KERNEL_STACK_POS, NULL, KERNEL_STACK_SIZE, 0);
+
+	// Init fd table and map it.
+	struct fd_table *fd_table = vfs_init_fd_table();
+	//memory_page_add(task->pages, FD_TABLE_POS, fd_table, 0);
+	task->fd_table = fd_table;
+	fd_table_set_standard_streams(fd_table, stdin, stdout, stderr);
 
 	// Set up user stack.
 	const uint64_t user_stack_size = 4 * KIBIBYTE;
@@ -80,8 +88,6 @@ void scheduler_init(page_table_t kernel_table) {
 	tasks[0].cr3 = memory_get_cr3(kernel_table);
 	current_task = &tasks[0];
 
-	//memory_allocate_range(kernel_table, kernel_stack_pos, NULL, kernel_stack_size, 0);
-
 	set_kernel_stack(KERNEL_STACK_POS + KERNEL_STACK_SIZE);
 }
 
@@ -102,4 +108,8 @@ void scheduler_sleep(uint64_t ticks) {
 	current_task->sleep = 1;
 	current_task->sleep_until = timer + ticks;
 	scheduler_update();
+}
+
+struct fd_table *scheduler_get_fd_table(void) {
+	return current_task->fd_table;
 }

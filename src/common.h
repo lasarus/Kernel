@@ -5,6 +5,8 @@ typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
 typedef unsigned long uint64_t;
+typedef unsigned long size_t;
+typedef long ssize_t;
 
 #define UINT64_MAX 0xffffffffffffffff
 
@@ -33,5 +35,7 @@ void print_interrupt(void);
 #define offsetof(type, member)  __builtin_offsetof (type, member)
 
 #define NULL ((void *)0)
+
+int strncmp(const char *s1, const char *s2, size_t n);
 
 #endif

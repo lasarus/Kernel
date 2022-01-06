@@ -25,13 +25,13 @@ void clear_screen(void) {
 	}
 }
 
-void print_char(char c) {
+void print_char_color(char c, unsigned char color) {
 	if (c == '\n') {
 		x = 0;
 		y++;
 	} else {
 		DISPLAY[(y * 80 + x) * 2] = c;
-		DISPLAY[(y * 80 + x) * 2 + 1] = 0x0f;
+		DISPLAY[(y * 80 + x) * 2 + 1] = color;
 		x++;
 		if (x >= 80) {
 			x = 0;
@@ -48,11 +48,16 @@ void print_char(char c) {
 					DISPLAY[(i * 80 + j) * 2 + 1] = 0x0f;
 				} else {
 					DISPLAY[(i * 80 + j) * 2] = DISPLAY[((i + 1) * 80 + j) * 2];
+					DISPLAY[(i * 80 + j) * 2 + 1] = DISPLAY[((i + 1) * 80 + j) * 2 + 1];
 				}
 			}
 		}
 		y--;
 	}
+}
+
+void print_char(char c) {
+	print_char_color(c, 0x0f);
 }
 
 void print(const char *str) {
