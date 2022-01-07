@@ -1,6 +1,7 @@
 #include "interrupts.h"
 #include "vga_text.h"
 #include "scheduler.h"
+#include "keyboard.h"
 
 #include "common.h"
 
@@ -104,8 +105,8 @@ void irq_timer(volatile struct interrupt_frame_s *frame) {
 __attribute__((interrupt))
 void irq_keyboard(struct interrupt_frame_s *frame) {
 	(void)frame;
-	unsigned char scan_code = inb(0x60);
-	print_int(scan_code);
+	unsigned char scancode = inb(0x60);
+	keyboard_feed_scancode(scancode);
 
 	outb(0x20, 0x20);
 }

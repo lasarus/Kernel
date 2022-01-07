@@ -20,6 +20,5 @@ void set_kernel_stack(uint64_t stack);
 #define PML4_PAGE(INDEX) (0xffff000000000000 | ((unsigned long long)(INDEX) << (9 * 3 + 12)))
 
 #define KERNEL_STACK_POS PML4_PAGE(510)
-#define FD_TABLE_POS PML4_PAGE(509)
 
 #endif

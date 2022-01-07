@@ -38,7 +38,6 @@ void scheduler_add_task(uint8_t *data, uint64_t size, int stdin, int stdout, int
 
 	// Init fd table and map it.
 	struct fd_table *fd_table = vfs_init_fd_table();
-	//memory_page_add(task->pages, FD_TABLE_POS, fd_table, 0);
 	task->fd_table = fd_table;
 	fd_table_set_standard_streams(fd_table, stdin, stdout, stderr);
 
