@@ -111,8 +111,6 @@ void irq_keyboard(struct interrupt_frame_s *frame) {
 	outb(0x20, 0x20);
 }
 
-void syscall_handler(void);
-
 enum {
 	EXCEPTION_DOUBLE_FAULT = 8,
 	EXCEPTION_GENERAL_PROTECTION_FAULT = 13,
@@ -140,8 +138,7 @@ func_ptr isr_table[] = {
 	[IRQ0+12] = irq_slave_reset,
 	[IRQ0+13] = irq_slave_reset,
 	[IRQ0+14] = irq_slave_reset,
-	[IRQ0+15] = irq_slave_reset,
-	[0x80] = syscall_handler,
+	[IRQ0+15] = irq_slave_reset
 };
 
 _Alignas(0x10) struct idt_entry {

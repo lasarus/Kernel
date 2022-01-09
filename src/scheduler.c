@@ -25,8 +25,6 @@ int n_tasks = 0;
 struct task tasks[16];
 struct task *current_task;
 
-#define KERNEL_STACK_SIZE (4 * KIBIBYTE)
-
 void scheduler_add_task(uint8_t *data, uint64_t size, int stdin, int stdout, int stderr) {
 	struct task *task = tasks + n_tasks;
 

@@ -5,10 +5,10 @@ _start:
 	movq $10, %r15
 	movq $msg_len, %rdx
 	movq $msg, %rsi
-	int $0x80
+	syscall
 	movq $35, %rax
 	movq $20, %rdi
-	int $0x80
+	syscall
 	jmp _start
 	retq
 msg:	.ascii "A"

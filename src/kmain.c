@@ -8,6 +8,7 @@
 #include "vfs.h"
 #include "tmpfs.h"
 #include "terminal.h"
+#include "syscall.h"
 
 void kmain(uint32_t magic, struct multiboot *mb) {
 	(void)magic;
@@ -21,14 +22,14 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	interrupts_init();
 	print("IDT initialized.\n");
 
+	syscall_init();
+	print("Syscall initialized.\n");
+
 	vfs_init();
 	print("VFS initialized.\n");
 
 	struct inode *root = vfs_resolve(NULL, "/");
 	tmpfs_init_dir(root);
-
-	/* struct inode *file = root->create_child(root, "test.txt", 8); */
-	/* tmpfs_init_file(file); */
 
 	struct inode *terminal = root->create_child(root, "terminal", 8);
 	terminal_init_inode(terminal);

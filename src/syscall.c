@@ -3,7 +3,7 @@
 #include "scheduler.h"
 
 // I'm trying to emulate Linux syscalls a little bit.
-void syscall(uint64_t rax, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
+void syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t rax) {
 	(void)arg0, (void)arg1, (void)arg2, (void)arg3, (void)arg4;
 	switch (rax) {
 	case 1: {
