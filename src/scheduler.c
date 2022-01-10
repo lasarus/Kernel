@@ -4,6 +4,7 @@
 #include "vga_text.h"
 #include "interrupts.h"
 #include "vfs.h"
+#include "elf_loader.h"
 
 struct task {
 	uint64_t rip, gp_regs[16];
@@ -30,7 +31,7 @@ void scheduler_add_task(uint8_t *data, uint64_t size, int stdin, int stdout, int
 
 	task->pages = memory_new_page_table();
 
-	memory_allocate_range(task->pages, 0x100000, data, size, 1);
+	elf_loader_load(task->pages, data, size, &task->rip);
 
 	memory_allocate_range(task->pages, KERNEL_STACK_POS, NULL, KERNEL_STACK_SIZE, 0);
 
@@ -45,7 +46,6 @@ void scheduler_add_task(uint8_t *data, uint64_t size, int stdin, int stdout, int
 	memory_allocate_range(task->pages, user_stack_pos, NULL, user_stack_size, 1);
 
 	task->is_usermode = 1;
-	task->rip = 0x100000;
 
 	task->gp_regs[4] = user_stack_pos + user_stack_size;
 	task->cr3 = memory_get_cr3(task->pages);
