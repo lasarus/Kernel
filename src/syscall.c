@@ -14,8 +14,9 @@ void syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_
 	} break;
 
 	case 35: {
-		// Not really like linux, this just sleeps for the number of ticks determined by arg0.
-		scheduler_sleep(arg0);
+		struct timespec *req = (void *)arg0;
+		struct timespec *rem = (void *)arg1; // rem is ignored for now.
+		scheduler_sleep(req->tv_sec); // TODO: Make this actually nanosleep.
 	} break;
 
 	default:
@@ -23,6 +24,4 @@ void syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_
 		print_int(rax);
 		print("\n");
 	}
-
-	//scheduler_suspend();
 }

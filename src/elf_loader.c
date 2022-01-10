@@ -61,8 +61,12 @@ void elf_loader_load(page_table_t table, uint8_t *data, uint64_t size, uint64_t 
 				hang_kernel();
 			}
 			memory_allocate_range(table, ph->p_vaddr, data + ph->p_offset, ph->p_filesz, 1);
+		} else if (ph->p_type > 16) {
+			// Just remove these, they are OS specific, but should work anyways.
 		} else {
 			print("Invalid program header type!\n");
+			print_hex(ph->p_type);
+			print("\n");
 			hang_kernel();
 		}
 	}

@@ -38,4 +38,11 @@ void print_interrupt(void);
 
 int strncmp(const char *s1, const char *s2, size_t n);
 
+typedef long time_t;
+
+struct timespec {
+	time_t tv_sec;
+	long tv_nsec;
+};
+
 #endif
