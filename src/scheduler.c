@@ -35,14 +35,13 @@ int get_next_task() {
 		if (next_task >= n_tasks)
 			next_task = 0;
 
-		if (tasks[next_task].sleep) {
+		if (tasks[next_task].sleep == SLEEP_CLOCK) {
 			if ((tasks[next_task].sleep_until < timer) ||
 				(tasks[next_task].sleep_until > (timer - UINT64_MAX / 2))) {
 				tasks[next_task].sleep = 0;
 				break;
-			} else {
 			}
-		} else {
+		} else if (tasks[next_task].sleep == SLEEP_NONE) {
 			break;
 		}
 	}
@@ -77,7 +76,7 @@ void scheduler_suspend(void) {
 }
 
 void scheduler_sleep(uint64_t ticks) {
-	current_task->sleep = 1;
+	current_task->sleep = SLEEP_CLOCK;
 	current_task->sleep_until = timer + ticks;
 	scheduler_update();
 }
@@ -109,4 +108,25 @@ int scheduler_fork(void) {
 		return 0;
 	else
 		return task->pid;
+}
+
+int scheduler_wait(struct task_wait *wait) {
+	if (wait->pid != -1)
+		return 0;
+
+	wait->pid = current_task->pid;
+
+	current_task->sleep = SLEEP_UNLIMITED;
+
+	scheduler_update();
+	return 1;
+}
+
+void scheduler_unwait(struct task_wait *wait) {
+	if (wait->pid == -1)
+		return;
+
+	int pid = wait->pid;
+	wait->pid = -1;
+	tasks[pid].sleep = SLEEP_NONE;
 }

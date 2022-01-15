@@ -14,6 +14,8 @@ struct dir_data {
 	struct file_entry entries[N_DIR_ENTRIES];
 };
 
+_Static_assert(N_DIR_ENTRIES > 14, "");
+
 _Static_assert(sizeof(struct dir_data) <= 4096, "");
 
 struct inode *tmpfs_dir_create_child(struct inode *inode, const char *name, int len) {
@@ -21,6 +23,7 @@ struct inode *tmpfs_dir_create_child(struct inode *inode, const char *name, int 
 	struct file_entry *entry = &data->entries[data->n_entries++];
 	for (int i = 0; i < len; i++)
 		entry->name[i] = name[i];
+	entry->name[len] = '\0';
 	entry->inode = vfs_new_inode();
 	return entry->inode;
 }

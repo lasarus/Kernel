@@ -7,6 +7,12 @@
 
 extern struct task *current_task;
 
+enum {
+	SLEEP_NONE = 0,
+	SLEEP_CLOCK,
+	SLEEP_UNLIMITED
+};
+
 struct task {
 	uint64_t rip, gp_regs[16];
 	uint64_t cr3;
@@ -21,6 +27,16 @@ struct task {
 
 	struct fd_table *fd_table;
 };
+
+struct task_wait {
+	int pid;
+};
+
+#define TASK_WAIT_DEFAULT { .pid = -1 }
+
+// Returns 0 if not able to wait.
+int scheduler_wait(struct task_wait *wait);
+void scheduler_unwait(struct task_wait *wait);
 
 void scheduler_add_task(const char *path, int stdin, int stdout, int stderr);
 void scheduler_update(void);

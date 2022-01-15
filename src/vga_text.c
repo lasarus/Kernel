@@ -57,14 +57,27 @@ void print_char_color(char c, unsigned char color) {
 }
 
 void print_char(char c) {
-	print_char_color(c, 0x0f);
+	if (c == '\b') {
+		if (x == 0) {
+			if (y > 0)
+				y--;
+			x = 80;
+		}
+		x--;
+		DISPLAY[(y * 80 + x) * 2] = ' ';
+		DISPLAY[(y * 80 + x) * 2 + 1] = 0x0f;
+	} else {
+		print_char_color(c, 0x0f);
+	}
+
+	update_cursor();
 }
 
 void print(const char *str) {
 	for (; *str; str++)
 		print_char(*str);
 
-	update_cursor();
+	//update_cursor();
 }
 
 void print_int(int num) {

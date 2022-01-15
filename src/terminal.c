@@ -2,8 +2,6 @@
 #include "vga_text.h"
 
 static ssize_t terminal_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
-	print("Not implemented.");
-	(void)inode;
 	return 0;
 }
 
@@ -24,8 +22,6 @@ void terminal_init_inode(struct inode *inode) {
 }
 
 static ssize_t terminal_red_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
-	print("Not implemented.");
-	(void)inode;
 	return 0;
 }
 

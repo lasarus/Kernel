@@ -9,6 +9,7 @@
 #include "tmpfs.h"
 #include "terminal.h"
 #include "syscall.h"
+#include "keyboard.h"
 
 void kmain(uint32_t magic, struct multiboot *mb) {
 	(void)magic;
@@ -37,10 +38,13 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	struct inode *error = root->create_child(root, "terminal_error", 14);
 	terminal_red_init_inode(error);
 
+	struct inode *keyboard = root->create_child(root, "keyboard", 8);
+	keyboard_init_inode(keyboard);
+
 	int stdin = -1, stdout = -1, stderr = -1;
+	stdin = vfs_open("/keyboard", O_RDONLY);
 	stdout = vfs_open("/terminal", O_WRONLY);
 	stderr = vfs_open("/terminal_error", O_WRONLY);
-	//(void)stdin, (void)stdout, (void)stderr;
 
 	struct inode *bin = root->create_child(root, "bin", 3);
 	tmpfs_init_dir(bin);

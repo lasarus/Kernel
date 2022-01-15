@@ -17,8 +17,8 @@ struct inode {
 		struct {
 			ssize_t (*read)(struct inode *inode, size_t *offset, void *data, size_t count);
 			ssize_t (*write)(struct inode *inode, size_t *offset, const void *data, size_t count);
-			void (*open)(struct inode *inode);
-			void (*close)(struct inode *inode);
+			void (*open)(struct inode *inode, int file);
+			void (*close)(struct inode *inode, int file);
 			ssize_t (*size)(struct inode *inode);
 		};
 		struct {

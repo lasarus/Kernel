@@ -1,5 +1,6 @@
 #include "keyboard.h"
 #include "vga_text.h"
+#include "scheduler.h"
 
 #define BUFFER_SIZE 1024
 
@@ -94,7 +95,6 @@ enum {
 	SCAN_COUNT
 };
 
-
 static char scancode_map[] = {
 	[0x02] = '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
 	[0x0F] = '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
@@ -107,6 +107,72 @@ static char scancode_map[] = {
 
 static unsigned char is_pressed[SCAN_COUNT];
 static unsigned char caps_lock = 0;
+
+static int line_buffer_idx = 0;
+static char line_buffer[256];
+
+int circular_buffer_start = 0,
+	circular_buffer_idx = 0,
+	available = 4095;
+static uint8_t circular_buffer[4096];
+
+static struct task_wait buffer_wait = TASK_WAIT_DEFAULT;
+
+// TODO: Don't fail when buffer is longer than 4096.
+void circular_buffer_add(char c) {
+	if (!available)
+		return;
+
+	if (circular_buffer_idx >= (int)COUNTOF(circular_buffer)) {
+		circular_buffer_idx = 0;
+	}
+
+	circular_buffer[circular_buffer_idx++] = c;
+	available--;
+}
+
+int circular_buffer_take(char *c) {
+	if (available == 4095)
+		return 0;
+
+	if (circular_buffer_start >= (int)COUNTOF(circular_buffer)) {
+		circular_buffer_start = 0;
+	}
+
+	*c = circular_buffer[circular_buffer_start++];
+	available++;
+
+	return 1;
+}
+
+void flush_line(void) {
+	for (int i = 0; i < line_buffer_idx; i++)
+		circular_buffer_add(line_buffer[i]);
+	line_buffer_idx = 0;
+
+	scheduler_unwait(&buffer_wait);
+}
+
+void add_char_to_buffer(char c) {
+	if (line_buffer_idx >= (int)COUNTOF(line_buffer))
+		return;
+
+	line_buffer[line_buffer_idx++] = c;
+
+	print_char(c);
+
+	if (c == '\n') {
+		flush_line();
+	}
+}
+
+void remove_char_from_buffer(void) {
+	if (line_buffer_idx == 0)
+		return;
+
+	print_char('\b');
+	line_buffer_idx--;
+}
 
 int toupper(int c) {
 	return (unsigned)c - 'a' < 26 ? c ^ 32 : c;
@@ -138,6 +204,40 @@ void keyboard_feed_scancode(unsigned char scancode) {
 		char c = scancode_map[scancode];
 		if (uppercase)
 			c = toupper(c);
-		print_char(c);
+
+		add_char_to_buffer(c);
 	}
+
+	if (pressed && scancode == SCAN_BACKSPACE)
+		remove_char_from_buffer();
+}
+
+static ssize_t keyboard_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
+	ssize_t read = 0;
+
+	uint8_t *user_buffer = data;
+
+	while (available < 4095 || scheduler_wait(&buffer_wait)) {
+		char c;
+		while ((size_t)read < count &&
+			   circular_buffer_take(&c)) {
+			user_buffer[read++] = c;
+		}
+
+		if ((size_t)read == count)
+			break;
+	}
+
+	return read;
+}
+
+static ssize_t keyboard_file_write(struct inode *inode, size_t *offset, const void *data, size_t count) {
+	return 0;
+}
+
+void keyboard_init_inode(struct inode *inode) {
+	inode->type = INODE_FILE;
+	inode->data = NULL;
+	inode->read = keyboard_file_read;
+	inode->write = keyboard_file_write;
 }

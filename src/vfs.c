@@ -120,7 +120,9 @@ void fd_table_set_standard_streams(struct fd_table *fd_table, int stdin, int std
 }
 
 ssize_t vfs_read_file(int file, void *data, size_t count) {
-	struct file_table_entry *entry = file_table.entries + file;
+	if (file == -1)
+		ERROR("Invalid file handle\n");
+	struct file_table_entry *entry = &file_table.entries[file];
 	struct inode *inode = entry->inode;
 
 	return inode->read(inode, &entry->file_offset, data, count);
