@@ -72,30 +72,22 @@ struct pt {
 	struct pt_entry entries[512];
 };
 
-// Identity tables.
-_Alignas(4096) static struct pml4 kernel_pml4_table;
 _Alignas(4096) static struct pdpt kernel_pdpt_table_large; // Maps first 512GiB.
-_Alignas(4096) static struct pdpt kernel_pdpt_table_small; // Maps first 1GiB.
+
+struct pml4 *current_pml4;
 
 void init_kernel_pml4(struct pml4 *pml4) {
-	for (unsigned i = 0; i < 512; i++)
-		pml4->entries[i].flags_and_address = 0;
-
-	pml4->entries[511].flags_and_address =
-		(0x1 | 0x2 | 0x4) + ((uint64_t)&kernel_pdpt_table_small - HIGHER_HALF_OFFSET);
 	pml4->entries[256].flags_and_address =
-		(0x1 | 0x2 | 0x4) + ((uint64_t)&kernel_pdpt_table_large - HIGHER_HALF_OFFSET);
+		(0x1 | 0x2) + ((uint64_t)&kernel_pdpt_table_large - HIGHER_HALF_OFFSET);
+
+	pml4->entries[0].flags_and_address = 0;
 }
 
 void set_up_higher_identity_paging(void) {
 	for (unsigned i = 0; i < 512; i++)
-		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x4 | 0x80) + (i << 12);
-	kernel_pdpt_table_small.entries[511].flags_and_address = 0x1 | 0x2 | 0x4 | 0x80;
+		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x80) + ((uint64_t)i << 30);
 
-	init_kernel_pml4(&kernel_pml4_table);
-
-	load_cr3((uint64_t)&kernel_pml4_table - HIGHER_HALF_OFFSET);
-	// We have a page table inherited from the bootstrap code.
+	init_kernel_pml4(current_pml4);
 }
 
 extern void *_end;
@@ -169,15 +161,9 @@ static struct gdt {
 	.tss_descriptor = { 0 } // Will be initailized at runtime, due to some bit-twiddling needed.
 };
 
-struct page_table_table {
-	uint64_t n_tables;
-	struct pml4 *pml4_pointers[511];
-};
-
-struct page_table_table *tables;
-struct pml4 *current_pml4;
-
 page_table_t memory_init(struct multiboot *mb) {
+	current_pml4 = (void *)(get_cr3() + HIGHER_HALF_OFFSET);
+
 	head = &last_elem;
 
 	uint64_t first_free = (uint64_t)&_end;
@@ -217,11 +203,7 @@ page_table_t memory_init(struct multiboot *mb) {
 
 	load_gdt(sizeof gdt - 1, (void *)&gdt);
 
-	tables = memory_alloc();
-	tables->n_tables = 1;
-	tables->pml4_pointers[0] = (void *)((uint64_t)&kernel_pml4_table - HIGHER_HALF_OFFSET + HIGHER_HALF_IDENTITY);
-
-	return 0;
+	return (void *)((uint64_t)current_pml4 - HIGHER_HALF_OFFSET + HIGHER_HALF_IDENTITY);
 }
 
 page_table_t memory_new_page_table(void) {
@@ -229,16 +211,96 @@ page_table_t memory_new_page_table(void) {
 	for (unsigned i = 0; i < 512; i++)
 		new_table->entries[i].flags_and_address = 0;
 
-	init_kernel_pml4(new_table);
-	int idx = tables->n_tables++;
+	return new_table;
+}
 
-	tables->pml4_pointers[idx] = new_table;
+#define GET_TABLE(FAA) (void *)((FAA & 0x00Cffffffffff000) + HIGHER_HALF_IDENTITY)
+#define MAKE_TABLE(ADDRESS) (0x1 | 0x2 | 0x4) + (uint64_t)ADDRESS - HIGHER_HALF_IDENTITY
 
-	return idx;
+void copy_pt(struct pt *dest, struct pt *src) {
+	for (int i = 0; i < 512; i++) {
+		if (!src->entries[i].flags_and_address) {
+			dest->entries[i] = src->entries[i];
+			continue;
+		}
+
+		uint8_t *src_memory = GET_TABLE(src->entries[i].flags_and_address);
+		uint8_t *dest_memory = memory_alloc();
+
+		for (int i = 0; i < 4096; i++) {
+			dest_memory[i] = src_memory[i];
+		}
+
+		dest->entries[i].flags_and_address = (src->entries[i].flags_and_address & 0xfff) |
+			((uint64_t)dest_memory - HIGHER_HALF_IDENTITY);
+	}
+}
+
+void copy_pd(struct pd *dest, struct pd *src) {
+	for (int i = 0; i < 512; i++) {
+		if (!src->entries[i].flags_and_address) {
+			dest->entries[i] = src->entries[i];
+			continue;
+		}
+
+		struct pt *src_pt = GET_TABLE(src->entries[i].flags_and_address);
+		struct pt *dst_pt = memory_alloc();
+
+		copy_pt(dst_pt, src_pt);
+
+		dest->entries[i].flags_and_address = (src->entries[i].flags_and_address & 0xfff) |
+			((uint64_t)dst_pt - HIGHER_HALF_IDENTITY);
+	}
+}
+
+void copy_pdpt(struct pdpt *dest, struct pdpt *src) {
+	for (int i = 0; i < 512; i++) {
+		if (!src->entries[i].flags_and_address) {
+			dest->entries[i] = src->entries[i];
+			continue;
+		}
+
+		struct pd *src_pd = GET_TABLE(src->entries[i].flags_and_address);
+		struct pd *dst_pd = memory_alloc();
+
+		copy_pd(dst_pd, src_pd);
+
+		dest->entries[i].flags_and_address = (src->entries[i].flags_and_address & 0xfff) |
+			((uint64_t)dst_pd - HIGHER_HALF_IDENTITY);
+	}
+}
+
+void copy_pml4(struct pml4 *dest, struct pml4 *src) {
+	for (int i = 0; i < 512; i++) {
+		if (!src->entries[i].flags_and_address ||
+			i == 511 || i == 256) {
+			dest->entries[i] = src->entries[i];
+			continue;
+		}
+
+		struct pdpt *src_pdpt = GET_TABLE(src->entries[i].flags_and_address);
+		struct pdpt *dst_pdpt = memory_alloc();
+
+		copy_pdpt(dst_pdpt, src_pdpt);
+
+		dest->entries[i].flags_and_address = (src->entries[i].flags_and_address & 0xfff) |
+			((uint64_t)dst_pdpt - HIGHER_HALF_IDENTITY);
+	}
+}
+
+page_table_t memory_page_table_copy(page_table_t old) {
+	page_table_t new = memory_new_page_table();
+
+	struct pml4 *old_table = old,
+		*new_table = new;
+
+	copy_pml4(new_table, old_table);
+
+	return new;
 }
 
 uint64_t memory_get_cr3(page_table_t table) {
-	return (uint64_t)tables->pml4_pointers[table] - HIGHER_HALF_IDENTITY;
+	return (uint64_t)table - HIGHER_HALF_IDENTITY;
 }
 
 void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user) {
@@ -247,7 +309,7 @@ void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr,
 	uint16_t c = (virtual_addr >> (12 + 9 * 2)) & 0x1FF;
 	uint16_t d = (virtual_addr >> (12 + 9 * 3)) & 0x1FF;
 
-	struct pml4 *pml4 = tables->pml4_pointers[table];
+	struct pml4 *pml4 = table;
 
 	struct pdpt *pdpt = 0;
 	if (pml4->entries[d].flags_and_address & 1) {

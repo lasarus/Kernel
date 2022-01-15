@@ -9,18 +9,6 @@ struct interrupt_frame_s {
 	uint64_t rip, cs, rflags, rsp, ss;
 };
 
-struct task {
-	uint64_t rip, gp_regs[16];
-	uint64_t cr3;
-	uint8_t is_usermode;
-
-	uint8_t sleep;
-	uint64_t sleep_until;
-	// TODO: XMM0-15
-
-	page_table_t pages;
-};
-
 extern int n_tasks;
 extern struct task tasks[16];
 extern struct task *current_task;
@@ -61,10 +49,6 @@ void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) 
 	print_int((int)error_code);
 	print("\n CRT2: ");
 	print_hex(cr2);
-	print("\n usermode: ");
-	print_hex(tasks[1].gp_regs[4]);
-	print(", ");
-	print_hex(tasks[2].gp_regs[4]);
 	print("\n CRT3: ");
 	print_hex(cr3);
 	print("\n RIP: ");

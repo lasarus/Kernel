@@ -36,6 +36,15 @@ PDPT_table:
 	# 63 XD
 	.zero 8 * 512
 	.align 4096
+PDPT_stack_table:	
+	.zero 8 * 512
+	.align 4096
+PD_stack_table:	
+	.zero 8 * 512
+	.align 4096
+PT_stack_table:	
+	.zero 8 * 512
+	.align 4096
 PML4_table:	
 	# One entry for lower, one entry for higher. Both pointing to the same PDPL_table.
 	# 0x1 Present
@@ -49,6 +58,12 @@ PML4_table:
 	# 62:52 Ignored
 	# 63 XD
 	.zero 8 * 512
+
+	.align 4096
+Lstack_bottom:
+	.skip 4096
+	.align 16
+Lstack_top:	
 
 GDT:
 	.quad 0 # Null descriptor
@@ -70,7 +85,13 @@ _start:
 	# Initialize page tables.
 	movl $((0x1 | 0x2 | 0x4 | 0x80)), PDPT_table
 	movl $((0x1 | 0x2 | 0x4 | 0x80)), PDPT_table + 8 * 511
+
+	movl $((0x1 | 0x2 | 0x4) + PD_stack_table), PDPT_stack_table
+	movl $((0x1 | 0x2 | 0x4) + PT_stack_table), PD_stack_table
+	movl $((0x1 | 0x2) + Lstack_bottom), PT_stack_table
+
 	movl $((0x1 | 0x2 | 0x4) + PDPT_table), PML4_table
+	movl $((0x1 | 0x2 | 0x4) + PDPT_stack_table), PML4_table + 8 * 510
 	movl $((0x1 | 0x2 | 0x4) + PDPT_table), PML4_table + 8 * 511
 
 	# Initailize GDT.
@@ -114,7 +135,11 @@ _start:
 
 	.code64
 long_mode:	
-	movq $stack_top, %rsp
+	.set KERNEL_STACK_POS, 0xffffff0000000000
+	.set KERNEL_STACK_SIZE, 0x0000000000001000
+	.set KERNEL_STACK_END, KERNEL_STACK_POS + KERNEL_STACK_SIZE
+
+	movabsq $KERNEL_STACK_END, %rsp
 
 	# Second argument to kmain is a pointer, turn it into higher half pointer.
 	addq $HIGHER_HALF_OFFSET, %rsi
@@ -135,9 +160,9 @@ halt:
 	hlt
 	jmp halt
 
-.section .bss
-	.align 16
-stack_bottom:
-	.skip 16348
-	.align 16
-stack_top:	
+;; .section .bss
+;; 	.align 16
+;; stack_bottom:
+;; 	.skip 16348
+;; 	.align 16
+;; stack_top:	

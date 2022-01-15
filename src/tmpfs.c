@@ -26,7 +26,13 @@ struct inode *tmpfs_dir_create_child(struct inode *inode, const char *name, int 
 }
 
 struct inode *tmpfs_dir_find_child(struct inode *inode, const char *name, int len) {
-	hang_kernel();
+	struct dir_data *data = inode->data;
+	for (int i = 0; i < data->n_entries; i++) {
+		if (strncmp(data->entries[i].name, name, len) == 0 &&
+			data->entries[i].name[len] == '\0') {
+			return data->entries[i].inode;
+		}
+	}
 	return NULL;
 }
 
@@ -38,47 +44,54 @@ void tmpfs_init_dir(struct inode *inode) {
 	inode->type = INODE_DIRECTORY;
 	inode->data = data;
 	inode->create_child = tmpfs_dir_create_child;
-	inode->create_child = tmpfs_dir_create_child;
+	inode->find_child = tmpfs_dir_find_child;
 }
 
-struct file_block {
-	uint8_t data[4096];
-};
-
 struct file_header {
-	struct file_header *next;
-	uint64_t n_blocks;
-	struct file_block *blocks[510];
+	void *data;
+	uint64_t size;
+	// Seems like a bit of waste...
 };
 
 _Static_assert(sizeof(struct file_header) <= 4096, "");
 
-// Each process has its own file-descriptors?
-// A table. What do the table entries represent?
+ssize_t tmpfs_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
+	struct file_header *header = inode->data;
+	uint8_t *user_data = data,
+		*file_data = (uint8_t *)header->data + *offset;
 
-ssize_t tmpfs_file_read(struct inode *inode, void *data, size_t count) {
-	print("Reading from file");
-	(void)inode;
+	if (*offset + count > header->size)
+		count = header->size - *offset;
+
+	for (size_t i = 0; i < count; i++)
+		*(user_data++) = *(file_data++);
+
+	*offset += count;
+
+	return count;
+}
+
+ssize_t tmpfs_file_write(struct inode *inode, size_t *offset, const void *data, size_t count) {
+	ERROR("Read only");
 	return 0;
 }
 
-ssize_t tmpfs_file_write(struct inode *inode, const void *data, size_t count) {
-	char *buf = (char *)data;
+ssize_t tmpfs_file_size(struct inode *inode) {
+	struct file_header *header = inode->data;
 
-	for (uint64_t i = 0; i < count; i++) {
-		print_char(buf[i]);
-	}
-	return 0;
+	return header->size;
 }
 
-void tmpfs_init_file(struct inode *inode) {
+void tmpfs_init_file(struct inode *inode,
+					 void *data, size_t size) {
 	struct file_header *header = memory_alloc();
 
-	header->next = NULL;
-	header->n_blocks = 0;
+	header->data = data;
+	header->size = size;
 
 	inode->type = INODE_FILE;
 	inode->data = header;
 	inode->read = tmpfs_file_read;
 	inode->write = tmpfs_file_write;
+	inode->size = tmpfs_file_size;
 }

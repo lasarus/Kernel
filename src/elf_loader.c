@@ -1,6 +1,7 @@
 #include "elf_loader.h"
 #include "vga_text.h"
 #include "memory.h"
+#include "vfs.h"
 
 struct header {
 	unsigned char e_ident[16];
@@ -31,41 +32,53 @@ struct program_header {
 };
 
 // It would be fun to make this a part of userspace some time.
-void elf_loader_load(page_table_t table, uint8_t *data, uint64_t size, uint64_t *rip) {
+void elf_loader_load(page_table_t table, const char *path, uint64_t *rip) {
+	int fd = vfs_open(path, O_RDONLY);
 	// Read elf header
-	struct header *header = (struct header *)data;
+	struct header header;
 
-	if (!(header->e_ident[0] == 0x7f &&
-		  header->e_ident[1] == 'E' &&
-		  header->e_ident[2] == 'L' &&
-		  header->e_ident[3] == 'F')) {
+	vfs_read_file(fd, &header, sizeof header);
+
+	//struct header *header = (struct header *)data;
+
+	if (!(header.e_ident[0] == 0x7f &&
+		  header.e_ident[1] == 'E' &&
+		  header.e_ident[2] == 'L' &&
+		  header.e_ident[3] == 'F')) {
 		print("Not elf!\n");
 		hang_kernel();
 	}
 
-	*rip = header->e_entry;
+	*rip = header.e_entry;
 
-	if (header->e_phentsize != sizeof (struct program_header)) {
+	if (header.e_phentsize != sizeof (struct program_header)) {
 		print("Header entry size not as expected!\n");
 		hang_kernel();
 	}
 
-	struct program_header *program_headers = (struct program_header *)(data + header->e_phoff);
-	for (int i = 0; i < header->e_phnum; i++) {
-		struct program_header *ph = program_headers + i;
-		if (ph->p_type == 0) {
+	for (int i = 0; i < header.e_phnum; i++) {
+		struct program_header ph;
+
+		vfs_lseek(fd, header.e_phoff + i * header.e_phentsize,
+				  SEEK_SET);
+		vfs_read_file(fd, &ph, header.e_phentsize);
+
+		if (ph.p_type == 0) {
 			continue;
-		} else if (ph->p_type == 1) { // LOAD
-			if (ph->p_filesz != ph->p_memsz) {
+		} else if (ph.p_type == 1) { // LOAD
+			if (ph.p_filesz != ph.p_memsz) {
 				print("Not implemented\n");
 				hang_kernel();
 			}
-			memory_allocate_range(table, ph->p_vaddr, data + ph->p_offset, ph->p_filesz, 1);
-		} else if (ph->p_type > 16) {
+
+			vfs_lseek(fd, ph.p_offset, SEEK_SET);
+			memory_allocate_range(table, ph.p_vaddr, NULL, ph.p_memsz, 1);
+			vfs_read_file(fd, (void *)ph.p_vaddr, ph.p_filesz);
+		} else if (ph.p_type > 16) {
 			// Just remove these, they are OS specific, but should work anyways.
 		} else {
 			print("Invalid program header type!\n");
-			print_hex(ph->p_type);
+			print_hex(ph.p_type);
 			print("\n");
 			hang_kernel();
 		}

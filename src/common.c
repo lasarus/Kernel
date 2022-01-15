@@ -11,3 +11,10 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 	while (--n && *s1 && (*s1++ == *s2++));
 	return n == 0 ? 0 : *s1 - *s2; // UB?
 }
+
+size_t strlen(const char *s) {
+	const char *start = s;
+	for (; *s; s++);
+	return s - start;
+}
+

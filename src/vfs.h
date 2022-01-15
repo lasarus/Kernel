@@ -15,10 +15,11 @@ struct inode {
 
 	union {
 		struct {
-			ssize_t (*read)(struct inode *inode, void *data, size_t count);
-			ssize_t (*write)(struct inode *inode, const void *data, size_t count);
+			ssize_t (*read)(struct inode *inode, size_t *offset, void *data, size_t count);
+			ssize_t (*write)(struct inode *inode, size_t *offset, const void *data, size_t count);
 			void (*open)(struct inode *inode);
 			void (*close)(struct inode *inode);
+			ssize_t (*size)(struct inode *inode);
 		};
 		struct {
 			struct inode *(*create_child)(struct inode *inode, const char *name, int len);
@@ -28,7 +29,7 @@ struct inode {
 
 	void *data;
 
-	uint8_t padding[16];
+	uint8_t padding[8];
 };
 
 _Static_assert(sizeof(struct inode) == 64, "");
@@ -51,6 +52,7 @@ struct fd_table { // File descriptor table
 _Static_assert(sizeof(struct fd_table) <= 4096, "");
 
 struct fd_table *vfs_init_fd_table(void);
+struct fd_table *vfs_copy_fd_table(struct fd_table *src);
 int fd_table_get_file(struct fd_table *fd_table, int fd);
 void fd_table_set_standard_streams(struct fd_table *fd_table, int stdin, int stdout, int stderr);
 
@@ -74,7 +76,16 @@ struct file_table {
 ssize_t vfs_read_file(int fd, void *data, size_t count);
 ssize_t vfs_write_file(int fd, const void *data, size_t count);
 
-int vfs_open_file(struct inode *inode, unsigned char access_mode);
+int vfs_open_inode(struct inode *inode, unsigned char access_mode);
+int vfs_open(const char *filename, unsigned char access_mode);
 void vfs_close_file(int file);
+
+enum {
+	SEEK_SET,
+	SEEK_CUR,
+	SEEK_END
+};
+
+size_t vfs_lseek(int fd, size_t offset, int whence);
 
 #endif

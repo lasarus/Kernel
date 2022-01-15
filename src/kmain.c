@@ -34,19 +34,36 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	struct inode *terminal = root->create_child(root, "terminal", 8);
 	terminal_init_inode(terminal);
 
-	struct inode *error = root->create_child(root, "terminal_error", 8);
+	struct inode *error = root->create_child(root, "terminal_error", 14);
 	terminal_red_init_inode(error);
 
 	int stdin = -1, stdout = -1, stderr = -1;
-	stdout = vfs_open_file(terminal, O_WRONLY);
-	stderr = vfs_open_file(error, O_WRONLY);
+	stdout = vfs_open("/terminal", O_WRONLY);
+	stderr = vfs_open("/terminal_error", O_WRONLY);
+	//(void)stdin, (void)stdout, (void)stderr;
+
+	struct inode *bin = root->create_child(root, "bin", 3);
+	tmpfs_init_dir(bin);
+
+	struct multiboot_module *modules = (void *)((uint64_t)mb->mods_addr + HIGHER_HALF_OFFSET);
+
+	static const char *names[] = { "init", "p1", "p2" };
+	for (unsigned i = 0; i < mb->mods_count; i++) {
+		uint8_t *data = (uint8_t *)(modules[i].mod_start + HIGHER_HALF_OFFSET);
+
+		struct inode *file = bin->create_child(bin, names[i], strlen(names[i]));
+		tmpfs_init_file(file, data, modules[i].mod_end - modules[i].mod_start);
+	}
 
 	scheduler_init(kernel_table);
 
-	struct multiboot_module *modules = (void *)((uint64_t)mb->mods_addr + HIGHER_HALF_OFFSET);
-	for (unsigned i = 0; i < mb->mods_count; i++) {
-		uint8_t *data = (uint8_t *)(modules[i].mod_start + HIGHER_HALF_OFFSET);
-		scheduler_add_task(data, modules[i].mod_end - modules[i].mod_start, stdin, stdout, stderr);
+	int init_pid = scheduler_fork();
+	if (init_pid == 0) {
+		// Set up stdin/stdout/stderr.
+		// We are in the init process now.
+		fd_table_set_standard_streams(current_task->fd_table, stdin, stdout, stderr);
+		scheduler_execve("/bin/init", NULL, NULL);
+		print("Process 1\n");
 	}
 
 	print("End of kmain.\n");

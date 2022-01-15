@@ -37,6 +37,7 @@ void print_interrupt(void);
 #define NULL ((void *)0)
 
 int strncmp(const char *s1, const char *s2, size_t n);
+size_t strlen(const char *s);
 
 typedef long time_t;
 
@@ -44,5 +45,7 @@ struct timespec {
 	time_t tv_sec;
 	long tv_nsec;
 };
+
+#define ERROR(STR, ...) do { print("\nError: "); print(__FILE__); print(":"); print_int(__LINE__); print(" "); print(STR); hang_kernel(); } while(0)
 
 #endif
