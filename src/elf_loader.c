@@ -39,8 +39,6 @@ void elf_loader_load(page_table_t table, const char *path, uint64_t *rip) {
 
 	vfs_read_file(fd, &header, sizeof header);
 
-	//struct header *header = (struct header *)data;
-
 	if (!(header.e_ident[0] == 0x7f &&
 		  header.e_ident[1] == 'E' &&
 		  header.e_ident[2] == 'L' &&
@@ -83,4 +81,6 @@ void elf_loader_load(page_table_t table, const char *path, uint64_t *rip) {
 			hang_kernel();
 		}
 	}
+
+	vfs_close_file(fd);
 }

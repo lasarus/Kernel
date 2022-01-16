@@ -62,9 +62,11 @@ PML4_table:
 	.align 4096
 Lstack_bottom:
 	.skip 4096
-	.align 16
+Lstack_mid:	
+	.skip 4096
 Lstack_top:	
 
+	.align 16
 GDT:
 	.quad 0 # Null descriptor
 	.quad 0 # code descriptor (not initialized)
@@ -89,6 +91,7 @@ _start:
 	movl $((0x1 | 0x2 | 0x4) + PD_stack_table), PDPT_stack_table
 	movl $((0x1 | 0x2 | 0x4) + PT_stack_table), PD_stack_table
 	movl $((0x1 | 0x2) + Lstack_bottom), PT_stack_table
+	movl $((0x1 | 0x2) + Lstack_mid), PT_stack_table + 8
 
 	movl $((0x1 | 0x2 | 0x4) + PDPT_table), PML4_table
 	movl $((0x1 | 0x2 | 0x4) + PDPT_stack_table), PML4_table + 8 * 510
@@ -136,7 +139,7 @@ _start:
 	.code64
 long_mode:	
 	.set KERNEL_STACK_POS, 0xffffff0000000000
-	.set KERNEL_STACK_SIZE, 0x0000000000001000
+	.set KERNEL_STACK_SIZE, 0x0000000000002000
 	.set KERNEL_STACK_END, KERNEL_STACK_POS + KERNEL_STACK_SIZE
 
 	movabsq $KERNEL_STACK_END, %rsp
@@ -159,10 +162,3 @@ long_mode:
 halt:
 	hlt
 	jmp halt
-
-;; .section .bss
-;; 	.align 16
-;; stack_bottom:
-;; 	.skip 16348
-;; 	.align 16
-;; stack_top:	

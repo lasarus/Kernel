@@ -19,6 +19,7 @@ void load_gdt(uint16_t limit, void *base);
 void load_tss(uint16_t gdt_entry);
 uint64_t round_up_4096(uint64_t val);
 void load_cr3(uint64_t pml4_ptr);
+void reload_cr3(void);
 uint64_t get_cr2(void);
 uint64_t get_cr3(void);
 

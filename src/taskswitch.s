@@ -3,9 +3,6 @@
 
 	.global usermode_jump
 usermode_jump:	#void usermode_jump(uint64_t user_stack, uint64_t entry, uint64_t rdi, uint64_t rsi, uint64_t rdx)
-	pushfq
-	popq %r11
-
 	# These are the rdi, rsi, rdx parameters later on.
 	movq %rcx, %r12
 
@@ -16,6 +13,8 @@ usermode_jump:	#void usermode_jump(uint64_t user_stack, uint64_t entry, uint64_t
 	movq %rdx, %rdi
 	movq %r12, %rsi
 	movq %r8, %rdx
+
+	movq $0x202, %r11
 
 	sysretq
 

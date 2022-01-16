@@ -7,7 +7,7 @@ stack_tmp:
 .global syscall_handler
 syscall_handler:
 	.set KERNEL_STACK_POS, 0xffffff0000000000
-	.set KERNEL_STACK_SIZE, 0x0000000000001000
+	.set KERNEL_STACK_SIZE, 0x0000000000002000
 	.set KERNEL_STACK_END, KERNEL_STACK_POS + KERNEL_STACK_SIZE
 
 	# Store stack in stack_tmp temporarily.
@@ -27,7 +27,6 @@ syscall_handler:
     pushq %r10
     pushq %r9
     pushq %r8
-    pushq %rax
     pushq %rcx
     pushq %rdx
     pushq %rbx
@@ -46,7 +45,6 @@ syscall_handler:
     popq %rbx
     popq %rdx
     popq %rcx
-    popq %rax
     popq %r8
     popq %r9
     popq %r10

@@ -40,6 +40,13 @@ void exception_general_protection_fault(struct interrupt_frame_s *frame, uint64_
 	hang_kernel();
 }
 
+void disasm(uint8_t *addr, int len) {
+	for (int i = 0; i < len; i++) {
+		print_hex(addr[i]);
+		print((i + 1) % 4 == 0 ? "\n" : " ");
+	}
+}
+
 __attribute__((interrupt))
 void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
 	(void)frame;
@@ -54,6 +61,7 @@ void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) 
 	print("\n RIP: ");
 	print_hex(frame->rip);
 	print("\n");
+	disasm((void *)frame->rip, 16);
 	hang_kernel();
 }
 

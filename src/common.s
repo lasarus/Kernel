@@ -48,6 +48,12 @@ load_tss:	 # void load_tss(uint16_t gdt_entry)
 load_cr3: # void load_cr3(void *pml4_ptr);
 	movq %rdi, %cr3
 	retq
+	
+	.global reload_cr3
+reload_cr3: # void load_cr3(void);
+	movq %cr3, %rdi
+	movq %rdi, %cr3
+	retq
 
 	.global get_cr2
 get_cr2: # uint64_t get_cr2(void);

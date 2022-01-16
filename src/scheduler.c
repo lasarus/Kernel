@@ -12,9 +12,17 @@ struct task *current_task;
 
 static int pid_counter = 0;
 
-void scheduler_execve(const char *filename, const char *const *argv, const char *const *envp) {
+void disasm(uint8_t *addr, int len);
+
+int scheduler_execve(const char *filename, const char *const *argv, const char *const *envp) {
+	int len = strlen(filename);
+	char path_buffer[256];
+	for (int i = 0; i <= len; i++)
+		path_buffer[i] = filename[i];
+
 	uint64_t rip;
-	elf_loader_load(current_task->pages, filename, &rip);
+	memory_page_table_delete(current_task->pages, 1);
+	elf_loader_load(current_task->pages, path_buffer, &rip);
 
 	const uint64_t user_stack_size = 4 * KIBIBYTE;
 	const uint64_t user_stack_pos = GIBIBYTE;
@@ -22,7 +30,10 @@ void scheduler_execve(const char *filename, const char *const *argv, const char 
 	// Set up user stack.
 	memory_allocate_range(current_task->pages, user_stack_pos, NULL, user_stack_size, 1);
 
+	//disasm((void *)rip, 16);
+
 	usermode_jump(user_stack_size + user_stack_pos, rip, 0, 0, 0);
+	return 0;
 }
 
 int get_next_task() {
@@ -35,15 +46,24 @@ int get_next_task() {
 		if (next_task >= n_tasks)
 			next_task = 0;
 
-		if (tasks[next_task].sleep == SLEEP_CLOCK) {
+		int resume = 0;
+		switch (tasks[next_task].status) {
+		case STATUS_CLOCK_SLEEP:
 			if ((tasks[next_task].sleep_until < timer) ||
 				(tasks[next_task].sleep_until > (timer - UINT64_MAX / 2))) {
-				tasks[next_task].sleep = 0;
-				break;
+				tasks[next_task].status = STATUS_RUNNING;
+				resume = 1;
 			}
-		} else if (tasks[next_task].sleep == SLEEP_NONE) {
 			break;
+
+		case STATUS_RUNNING:
+			resume = 1;
+			break;
+		default: break;
 		}
+
+		if (resume)
+			break;
 	}
 
 	prev_task = next_task;
@@ -66,6 +86,14 @@ void scheduler_init(page_table_t kernel_table) {
 void scheduler_update(void) {
 	int next_task = get_next_task();
 
+	for (int i = 0; i < n_tasks; i++) {
+		if (tasks[i].status == STATUS_CLEANUP &&
+			current_task - tasks != i) {
+			tasks[i].status = STATUS_DEAD;
+			memory_page_table_delete(tasks[i].pages, 0);
+		}
+	}
+
 	struct task *task = tasks + next_task;
 
 	switch_task_to(task);
@@ -76,7 +104,7 @@ void scheduler_suspend(void) {
 }
 
 void scheduler_sleep(uint64_t ticks) {
-	current_task->sleep = SLEEP_CLOCK;
+	current_task->status = STATUS_CLOCK_SLEEP;
 	current_task->sleep_until = timer + ticks;
 	scheduler_update();
 }
@@ -116,7 +144,7 @@ int scheduler_wait(struct task_wait *wait) {
 
 	wait->pid = current_task->pid;
 
-	current_task->sleep = SLEEP_UNLIMITED;
+	current_task->status = STATUS_UNLIMITED_SLEEP;
 
 	scheduler_update();
 	return 1;
@@ -128,5 +156,11 @@ void scheduler_unwait(struct task_wait *wait) {
 
 	int pid = wait->pid;
 	wait->pid = -1;
-	tasks[pid].sleep = SLEEP_NONE;
+	tasks[pid].status = STATUS_RUNNING;
+}
+
+void scheduler_exit(int error_code) {
+	current_task->status = STATUS_CLEANUP;
+
+	scheduler_update();
 }

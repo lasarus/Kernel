@@ -78,14 +78,14 @@ struct pml4 *current_pml4;
 
 void init_kernel_pml4(struct pml4 *pml4) {
 	pml4->entries[256].flags_and_address =
-		(0x1 | 0x2) + ((uint64_t)&kernel_pdpt_table_large - HIGHER_HALF_OFFSET);
+		(0x1 | 0x2 | 0x4) + ((uint64_t)&kernel_pdpt_table_large - HIGHER_HALF_OFFSET);
 
 	pml4->entries[0].flags_and_address = 0;
 }
 
 void set_up_higher_identity_paging(void) {
 	for (unsigned i = 0; i < 512; i++)
-		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x80) + ((uint64_t)i << 30);
+		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x4 | 0x80) + ((uint64_t)i << 30);
 
 	init_kernel_pml4(current_pml4);
 }
@@ -299,6 +299,69 @@ page_table_t memory_page_table_copy(page_table_t old) {
 	return new;
 }
 
+void delete_pt(struct pt *table) {
+	for (int i = 0; i < 512; i++) {
+		if (!table->entries[i].flags_and_address)
+			continue;
+
+		void *memory = GET_TABLE(table->entries[i].flags_and_address);
+
+		memory_free(memory);
+	}
+}
+
+void delete_pd(struct pd *table) {
+	for (int i = 0; i < 512; i++) {
+		if (!table->entries[i].flags_and_address)
+			continue;
+
+		struct pt *pt = GET_TABLE(table->entries[i].flags_and_address);
+
+		delete_pt(pt);
+		memory_free(pt);
+
+		table->entries[i].flags_and_address = 0;
+	}
+}
+
+void delete_pdpt(struct pdpt *table) {
+	for (int i = 0; i < 512; i++) {
+		if (!table->entries[i].flags_and_address)
+			continue;
+
+		struct pd *pd = GET_TABLE(table->entries[i].flags_and_address);
+
+		delete_pd(pd);
+		memory_free(pd);
+
+		table->entries[i].flags_and_address = 0;
+	}
+}
+
+void delete_pml4(struct pml4 *table, int only_user) {
+	for (int i = 0; i < 512; i++) {
+		if (!table->entries[i].flags_and_address ||
+			i == 511 || i == 256) {
+			continue;
+		}
+
+		if (only_user && i >= 256)
+			continue;
+
+		struct pdpt *pdpt = GET_TABLE(table->entries[i].flags_and_address);
+
+		delete_pdpt(pdpt);
+		memory_free(pdpt);
+
+		table->entries[i].flags_and_address = 0;
+	}
+	reload_cr3();
+}
+
+void memory_page_table_delete(page_table_t table, int only_user) {
+	delete_pml4(table, only_user);
+}
+
 uint64_t memory_get_cr3(page_table_t table) {
 	return (uint64_t)table - HIGHER_HALF_IDENTITY;
 }
@@ -353,6 +416,7 @@ void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uin
 
 	for (uint64_t page = 0; page < size; page += 4096) {
 		uint8_t *new_page = memory_alloc();
+
 		if (data) {
 			for (unsigned i = 0; i < 4096; i++) {
 				if (page + i >= size)
@@ -360,8 +424,11 @@ void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uin
 				new_page[i] = data[page + i];
 			}
 		}
+
 		memory_page_add(table, base + page, new_page, user);
 	}
+
+	reload_cr3();
 }
 
 void set_kernel_stack(uint64_t stack) {

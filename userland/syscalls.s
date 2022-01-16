@@ -22,14 +22,27 @@ fork:
 	syscall
 	retq
 
+	.global execve
+execve:	
+	movq $59, %rax
+	syscall
+	retq
+
 	.global nanosleep
 nanosleep:	
 	movq $0x23, %rax
 	syscall
 	retq
 
+	.global exit
+exit:	
+	movq $0x3c, %rax
+	syscall
+	retq
+
 	.global _start
 _start:	
+	movq $0x1337, %r15
 	call main
 	movq %rax, %rdi
 	movq $0x3c, %rax

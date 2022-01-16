@@ -12,6 +12,7 @@ page_table_t memory_init(struct multiboot *mb);
 
 page_table_t memory_new_page_table(void);
 page_table_t memory_page_table_copy(page_table_t old);
+void memory_page_table_delete(page_table_t old, int only_user);
 void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user);
 void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uint64_t size, int user);
 uint64_t memory_get_cr3(page_table_t table);
@@ -21,7 +22,7 @@ void set_kernel_stack(uint64_t stack);
 #define PML4_PAGE(INDEX) (0xffff000000000000 | ((unsigned long long)(INDEX) << (9 * 3 + 12)))
 
  // Modifying these also requires modifying syscall_handler.s.
-#define KERNEL_STACK_SIZE (4 * KIBIBYTE)
+#define KERNEL_STACK_SIZE (8 * KIBIBYTE)
 #define KERNEL_STACK_POS PML4_PAGE(510)
 
 #endif

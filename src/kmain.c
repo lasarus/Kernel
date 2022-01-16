@@ -45,13 +45,14 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	stdin = vfs_open("/keyboard", O_RDONLY);
 	stdout = vfs_open("/terminal", O_WRONLY);
 	stderr = vfs_open("/terminal_error", O_WRONLY);
+	(void)stdin, (void)stdout, (void)stderr;
 
 	struct inode *bin = root->create_child(root, "bin", 3);
 	tmpfs_init_dir(bin);
 
 	struct multiboot_module *modules = (void *)((uint64_t)mb->mods_addr + HIGHER_HALF_OFFSET);
 
-	static const char *names[] = { "init", "p1", "p2" };
+	static const char *names[] = { "init", "hello", "p2" };
 	for (unsigned i = 0; i < mb->mods_count; i++) {
 		uint8_t *data = (uint8_t *)(modules[i].mod_start + HIGHER_HALF_OFFSET);
 
@@ -63,11 +64,10 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 
 	int init_pid = scheduler_fork();
 	if (init_pid == 0) {
-		// Set up stdin/stdout/stderr.
-		// We are in the init process now.
+		/* Set up stdin/stdout/stderr. */
+		/* We are in the init process now. */
 		fd_table_set_standard_streams(current_task->fd_table, stdin, stdout, stderr);
 		scheduler_execve("/bin/init", NULL, NULL);
-		print("Process 1\n");
 	}
 
 	print("End of kmain.\n");

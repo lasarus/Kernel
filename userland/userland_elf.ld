@@ -14,6 +14,10 @@ SECTIONS {
 		*(.rodata)
 	}
 
+	.data : {
+		*(.data)
+	}
+
 	/DISCARD/ : {
 		*(*)
 	}
