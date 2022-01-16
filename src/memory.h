@@ -13,6 +13,10 @@ page_table_t memory_init(struct multiboot *mb);
 page_table_t memory_new_page_table(void);
 page_table_t memory_page_table_copy(page_table_t old);
 void memory_page_table_delete(page_table_t old, int only_user);
+
+void memory_page_table_delete_pdpt(page_table_t old, int idx);
+void memory_page_table_move_pdpt(page_table_t old, int dest, int src);
+
 void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user);
 void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uint64_t size, int user);
 uint64_t memory_get_cr3(page_table_t table);

@@ -55,16 +55,11 @@ struct inode *vfs_resolve(struct inode *root, const char *path) {
 	}
 
 	if (!root)
-		ERROR("No root\n");
+		return NULL;
 
 	while (*path) {
-		if (root->type != INODE_DIRECTORY) {
-			print("  ");
-			print(path);
-			print("  ");
-			print(opath);
-			ERROR("Invalid directory\n");
-		}
+		if (root->type != INODE_DIRECTORY)
+			return NULL;
 
 		// Find next path.
 		const char *start = path;
@@ -177,6 +172,8 @@ int vfs_open_inode(struct inode *inode, unsigned char access_mode) {
 
 int vfs_open(const char *filename, unsigned char access_mode) {
 	struct inode *inode = vfs_resolve(NULL, filename);
+	if (!inode)
+		return -1;
 	return vfs_open_inode(inode, access_mode);
 }
 

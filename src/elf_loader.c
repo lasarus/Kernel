@@ -32,8 +32,12 @@ struct program_header {
 };
 
 // It would be fun to make this a part of userspace some time.
-void elf_loader_load(page_table_t table, const char *path, uint64_t *rip) {
+int elf_loader_stage(page_table_t table, const char *path, uint64_t *rip) {
 	int fd = vfs_open(path, O_RDONLY);
+
+	if (fd == -1)
+		return 1;
+
 	// Read elf header
 	struct header header;
 
@@ -43,9 +47,9 @@ void elf_loader_load(page_table_t table, const char *path, uint64_t *rip) {
 		  header.e_ident[1] == 'E' &&
 		  header.e_ident[2] == 'L' &&
 		  header.e_ident[3] == 'F')) {
-		print("Not elf!\n");
-		hang_kernel();
+		return 1;
 	}
+
 
 	*rip = header.e_entry;
 
@@ -70,8 +74,8 @@ void elf_loader_load(page_table_t table, const char *path, uint64_t *rip) {
 			}
 
 			vfs_lseek(fd, ph.p_offset, SEEK_SET);
-			memory_allocate_range(table, ph.p_vaddr, NULL, ph.p_memsz, 1);
-			vfs_read_file(fd, (void *)ph.p_vaddr, ph.p_filesz);
+			memory_allocate_range(table, ph.p_vaddr + ELF_STAGE_OFFSET, NULL, ph.p_memsz, 1);
+			vfs_read_file(fd, (void *)(ph.p_vaddr + ELF_STAGE_OFFSET), ph.p_filesz);
 		} else if (ph.p_type > 16) {
 			// Just remove these, they are OS specific, but should work anyways.
 		} else {
@@ -83,4 +87,6 @@ void elf_loader_load(page_table_t table, const char *path, uint64_t *rip) {
 	}
 
 	vfs_close_file(fd);
+
+	return 0;
 }

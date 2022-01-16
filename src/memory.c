@@ -362,6 +362,28 @@ void memory_page_table_delete(page_table_t table, int only_user) {
 	delete_pml4(table, only_user);
 }
 
+
+void memory_page_table_delete_pdpt(page_table_t table, int idx) {
+	if (!table->entries[idx].flags_and_address)
+		return;
+
+	struct pdpt *pdpt = GET_TABLE(table->entries[idx].flags_and_address);
+
+	delete_pdpt(pdpt);
+	memory_free(pdpt);
+
+	table->entries[idx].flags_and_address = 0;
+
+	reload_cr3();
+}
+
+void memory_page_table_move_pdpt(page_table_t table, int dest, int src) {
+	table->entries[dest] = table->entries[src];
+	table->entries[src].flags_and_address = 0;
+
+	reload_cr3();
+}
+
 uint64_t memory_get_cr3(page_table_t table) {
 	return (uint64_t)table - HIGHER_HALF_IDENTITY;
 }

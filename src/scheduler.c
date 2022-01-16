@@ -21,8 +21,13 @@ int scheduler_execve(const char *filename, const char *const *argv, const char *
 		path_buffer[i] = filename[i];
 
 	uint64_t rip;
+	if (elf_loader_stage(current_task->pages, path_buffer, &rip)) {
+		memory_page_table_delete_pdpt(current_task->pages, ELF_STAGE_INDEX);
+		return 1;
+	}
+
 	memory_page_table_delete(current_task->pages, 1);
-	elf_loader_load(current_task->pages, path_buffer, &rip);
+	memory_page_table_move_pdpt(current_task->pages, 0, ELF_STAGE_INDEX);
 
 	const uint64_t user_stack_size = 4 * KIBIBYTE;
 	const uint64_t user_stack_pos = GIBIBYTE;
