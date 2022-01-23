@@ -54,6 +54,10 @@ void execute(const char *path) {
 	int pid = fork();
 	if (pid) {
 		execve(buff, NULL, NULL);
+		puts("Could not execute: \"");
+		puts(buff);
+		puts("\"\n");
+
 		exit(1);
 	}
 }

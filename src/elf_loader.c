@@ -33,7 +33,16 @@ struct program_header {
 
 // It would be fun to make this a part of userspace some time.
 int elf_loader_stage(page_table_t table, const char *path, uint64_t *rip) {
-	int fd = vfs_open(path, O_RDONLY);
+	struct inode *inode = vfs_resolve(NULL, path);
+
+	if (!inode)
+		return 1;
+
+	if (inode->type != INODE_FILE)
+		return 1;
+
+	int fd = vfs_open_inode(inode, O_RDONLY);
+	//int fd = vfs_open(path, O_RDONLY);
 
 	if (fd == -1)
 		return 1;

@@ -6,8 +6,10 @@
 #include "vfs.h"
 #include "elf_loader.h"
 
+#define MAX_TASKS 16
+
 int n_tasks = 0;
-struct task tasks[16];
+struct task tasks[MAX_TASKS];
 struct task *current_task;
 
 static int pid_counter = 0;
@@ -16,12 +18,9 @@ void disasm(uint8_t *addr, int len);
 
 int scheduler_execve(const char *filename, const char *const *argv, const char *const *envp) {
 	int len = strlen(filename);
-	char path_buffer[256];
-	for (int i = 0; i <= len; i++)
-		path_buffer[i] = filename[i];
 
 	uint64_t rip;
-	if (elf_loader_stage(current_task->pages, path_buffer, &rip)) {
+	if (elf_loader_stage(current_task->pages, filename, &rip)) {
 		memory_page_table_delete_pdpt(current_task->pages, ELF_STAGE_INDEX);
 		return 1;
 	}
@@ -64,6 +63,7 @@ int get_next_task() {
 		case STATUS_RUNNING:
 			resume = 1;
 			break;
+
 		default: break;
 		}
 
@@ -75,14 +75,38 @@ int get_next_task() {
 	return next_task;
 }
 
-void scheduler_init(page_table_t kernel_table) {
-	n_tasks++;
-	tasks[0].pages = kernel_table;
-	tasks[0].cr3 = memory_get_cr3(kernel_table);
-	tasks[0].fd_table = vfs_init_fd_table();
-	tasks[0].pid = pid_counter++;
+struct task *new_task() {
+	// First try to find a dead task to replace.
+	int idx = -1;
+	for (int i = 0; i < n_tasks; i++) {
+		if (tasks[i].status == STATUS_DEAD) {
+			idx = i;
+			break;
+		}
+	}
 
-	current_task = &tasks[0];
+	// If none found, add to end.
+	if (n_tasks >= MAX_TASKS)
+		ERROR("Too many concurrent tasks.");
+
+	if (idx == -1) {
+		struct task *task = tasks + n_tasks;
+		task->status = STATUS_UNLIMITED_SLEEP;
+		n_tasks++;
+		return task;
+	}
+
+	return tasks + idx;
+}
+
+void scheduler_init(page_table_t kernel_table) {
+	current_task = new_task();
+	*current_task = (struct task) {
+		.pages = kernel_table,
+		.cr3 = memory_get_cr3(kernel_table),
+		.fd_table = vfs_init_fd_table(),
+		.pid = pid_counter++
+	};
 
 	set_kernel_stack(KERNEL_STACK_POS + KERNEL_STACK_SIZE);
 }
@@ -126,15 +150,13 @@ void setup_fork(struct task *old, struct task *new) {
 	new->is_usermode = 0;
 	new->cr3 = memory_get_cr3(new->pages);
 	new->pid = pid_counter++;
-
-	n_tasks++;
+	new->status = STATUS_RUNNING;
 }
 
 int scheduler_fork(void) {
-	struct task *task = tasks + n_tasks;
+	struct task *task = new_task();
 
 	// Race condition...?
-
 	int new_process = low_fork(current_task, task);
 
 	if (new_process)
@@ -155,13 +177,31 @@ int scheduler_wait(struct task_wait *wait) {
 	return 1;
 }
 
+int task_is_alive(struct task *task) {
+	return task->status != STATUS_DEAD &&
+		task->status != STATUS_CLEANUP;
+}
+
+static struct task *get_task_from_pid(int pid) {
+	for (int i = 0; i < n_tasks; i++) {
+		if (tasks[i].pid == pid &&
+			task_is_alive(tasks + i)) {
+			return tasks + i;
+		}
+	}
+	return NULL;
+}
+
 void scheduler_unwait(struct task_wait *wait) {
 	if (wait->pid == -1)
 		return;
 
-	int pid = wait->pid;
+	struct task *task = get_task_from_pid(wait->pid);
+
+	if (task)
+		task->status = STATUS_RUNNING;
+
 	wait->pid = -1;
-	tasks[pid].status = STATUS_RUNNING;
 }
 
 void scheduler_exit(int error_code) {
