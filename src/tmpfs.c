@@ -31,8 +31,7 @@ struct inode *tmpfs_dir_create_child(struct inode *inode, const char *name, int 
 struct inode *tmpfs_dir_find_child(struct inode *inode, const char *name, int len) {
 	struct dir_data *data = inode->data;
 	for (int i = 0; i < data->n_entries; i++) {
-		if (strncmp(data->entries[i].name, name, len) == 0 &&
-			data->entries[i].name[len] == '\0') {
+		if (strncmp(data->entries[i].name, name, len) == 0 && data->entries[i].name[len] == '\0') {
 			return data->entries[i].inode;
 		}
 	}
@@ -60,8 +59,7 @@ _Static_assert(sizeof(struct file_header) <= 4096, "");
 
 ssize_t tmpfs_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
 	struct file_header *header = inode->data;
-	uint8_t *user_data = data,
-		*file_data = (uint8_t *)header->data + *offset;
+	uint8_t *user_data = data, *file_data = (uint8_t *)header->data + *offset;
 
 	if (*offset + count > header->size)
 		count = header->size - *offset;
@@ -85,8 +83,7 @@ ssize_t tmpfs_file_size(struct inode *inode) {
 	return header->size;
 }
 
-void tmpfs_init_file(struct inode *inode,
-					 void *data, size_t size) {
+void tmpfs_init_file(struct inode *inode, void *data, size_t size) {
 	struct file_header *header = memory_alloc();
 
 	header->data = data;

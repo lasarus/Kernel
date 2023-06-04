@@ -5,9 +5,9 @@
 #define DISPLAY ((uint8_t *)(0xB8000 + HIGHER_HALF_OFFSET))
 static int x = 0, y = 0;
 
-void update_cursor(void) {
+static void update_cursor(void) {
 	uint16_t pos = y * 80 + x;
- 
+
 	outb(0x3D4, 0x0F);
 	outb(0x3D5, (uint8_t)(pos & 0xFF));
 	outb(0x3D4, 0x0E);
@@ -16,10 +16,9 @@ void update_cursor(void) {
 }
 
 void clear_screen(void) {
-	//(*display) = 'K';
 	for (int i = 0; i < 25; i++) {
 		for (int j = 0; j < 80; j++) {
-			DISPLAY[(i * 80 + j) * 2] = ' ';
+			DISPLAY[(i * 80 + j) * 2 + 0] = ' ';
 			DISPLAY[(i * 80 + j) * 2 + 1] = 0x0f;
 		}
 	}
@@ -30,7 +29,7 @@ void print_char_color(char c, unsigned char color) {
 		x = 0;
 		y++;
 	} else {
-		DISPLAY[(y * 80 + x) * 2] = c;
+		DISPLAY[(y * 80 + x) * 2 + 0] = c;
 		DISPLAY[(y * 80 + x) * 2 + 1] = color;
 		x++;
 		if (x >= 80) {
@@ -44,10 +43,10 @@ void print_char_color(char c, unsigned char color) {
 		for (int i = 0; i < 25; i++) {
 			for (int j = 0; j < 80; j++) {
 				if (i == 24) {
-					DISPLAY[(i * 80 + j) * 2] = ' ';
+					DISPLAY[(i * 80 + j) * 2 + 0] = ' ';
 					DISPLAY[(i * 80 + j) * 2 + 1] = 0x0f;
 				} else {
-					DISPLAY[(i * 80 + j) * 2] = DISPLAY[((i + 1) * 80 + j) * 2];
+					DISPLAY[(i * 80 + j) * 2 + 0] = DISPLAY[((i + 1) * 80 + j) * 2 + 0];
 					DISPLAY[(i * 80 + j) * 2 + 1] = DISPLAY[((i + 1) * 80 + j) * 2 + 1];
 				}
 			}
@@ -64,7 +63,7 @@ void print_char(char c) {
 			x = 80;
 		}
 		x--;
-		DISPLAY[(y * 80 + x) * 2] = ' ';
+		DISPLAY[(y * 80 + x) * 2 + 0] = ' ';
 		DISPLAY[(y * 80 + x) * 2 + 1] = 0x0f;
 	} else {
 		print_char_color(c, 0x0f);
@@ -76,8 +75,6 @@ void print_char(char c) {
 void print(const char *str) {
 	for (; *str; str++)
 		print_char(*str);
-
-	//update_cursor();
 }
 
 void print_int(int num) {
@@ -90,7 +87,7 @@ void print_int(int num) {
 		buffer[0] = '0';
 		idx++;
 	}
-	
+
 	for (idx--; idx >= 0; idx--) {
 		print_char(buffer[idx]);
 	}
@@ -101,7 +98,7 @@ void print_hex(uint64_t num) {
 	char buffer[16];
 	int idx = 0;
 	for (; num; num /= 16) {
-		int digit = num % 16;
+		uint64_t digit = num % 16;
 		if (digit < 10) {
 			buffer[idx++] = digit + '0';
 		} else {
@@ -113,7 +110,7 @@ void print_hex(uint64_t num) {
 		buffer[0] = '0';
 		idx++;
 	}
-	
+
 	for (idx--; idx >= 0; idx--) {
 		print_char(buffer[idx]);
 	}

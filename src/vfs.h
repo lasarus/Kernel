@@ -8,7 +8,7 @@ struct inode {
 	enum {
 		INODE_FILE,
 		INODE_DIRECTORY,
-		INODE_CHAR_DEVICE
+		INODE_CHAR_DEVICE,
 	} type;
 
 	uint32_t id;
@@ -59,7 +59,7 @@ void fd_table_set_standard_streams(struct fd_table *fd_table, int stdin, int std
 enum {
 	O_RDONLY = 1 << 0,
 	O_WRONLY = 1 << 1,
-	O_RDWR = O_RDONLY | O_WRONLY
+	O_RDWR = O_RDONLY | O_WRONLY,
 };
 
 struct file_table {
@@ -83,7 +83,7 @@ void vfs_close_file(int file);
 enum {
 	SEEK_SET,
 	SEEK_CUR,
-	SEEK_END
+	SEEK_END,
 };
 
 size_t vfs_lseek(int fd, size_t offset, int whence);

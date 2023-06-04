@@ -1,7 +1,7 @@
 #include "interrupts.h"
-#include "vga_text.h"
-#include "scheduler.h"
 #include "keyboard.h"
+#include "scheduler.h"
+#include "vga_text.h"
 
 #include "common.h"
 
@@ -13,8 +13,7 @@ extern int n_tasks;
 extern struct task tasks[16];
 extern struct task *current_task;
 
-__attribute__((interrupt))
-void unhandled_interrupt(struct interrupt_frame_s *frame) {
+__attribute__((interrupt)) void unhandled_interrupt(struct interrupt_frame_s *frame) {
 	(void)frame;
 	print("\nCurrent task: ");
 	print_int(current_task - tasks);
@@ -22,16 +21,15 @@ void unhandled_interrupt(struct interrupt_frame_s *frame) {
 	hang_kernel();
 }
 
-__attribute__((interrupt))
-void exception_double_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
+__attribute__((interrupt)) void exception_double_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
 	(void)frame;
 	print("Double fault.\nWith error code:");
 	print_int((int)error_code);
 	hang_kernel();
 }
 
-__attribute__((interrupt))
-void exception_general_protection_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
+__attribute__((interrupt)) void exception_general_protection_fault(struct interrupt_frame_s *frame,
+                                                                   uint64_t error_code) {
 	(void)frame;
 	print("General protection fault.\nWith error code: ");
 	print_int((int)error_code);
@@ -47,8 +45,7 @@ void disasm(uint8_t *addr, int len) {
 	}
 }
 
-__attribute__((interrupt))
-void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
+__attribute__((interrupt)) void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) {
 	(void)frame;
 	uint64_t cr2 = get_cr2();
 	uint64_t cr3 = get_cr3();
@@ -65,15 +62,13 @@ void exception_page_fault(struct interrupt_frame_s *frame, uint64_t error_code) 
 	hang_kernel();
 }
 
-__attribute__((interrupt))
-void irq_master_reset(struct interrupt_frame_s *frame) {
+__attribute__((interrupt)) void irq_master_reset(struct interrupt_frame_s *frame) {
 	(void)frame;
 	print("IRQ master");
 	outb(0x20, 0x20);
 }
 
-__attribute__((interrupt))
-void irq_slave_reset(struct interrupt_frame_s *frame) {
+__attribute__((interrupt)) void irq_slave_reset(struct interrupt_frame_s *frame) {
 	(void)frame;
 	print("IRQ slave");
 	outb(0xA0, 0x20);
@@ -82,8 +77,7 @@ void irq_slave_reset(struct interrupt_frame_s *frame) {
 
 uint64_t timer = 0;
 
-__attribute__((interrupt))
-void irq_timer(volatile struct interrupt_frame_s *frame) {
+__attribute__((interrupt)) void irq_timer(volatile struct interrupt_frame_s *frame) {
 	(void)frame;
 
 	timer++;
@@ -94,8 +88,7 @@ void irq_timer(volatile struct interrupt_frame_s *frame) {
 	scheduler_update();
 }
 
-__attribute__((interrupt))
-void irq_keyboard(struct interrupt_frame_s *frame) {
+__attribute__((interrupt)) void irq_keyboard(struct interrupt_frame_s *frame) {
 	(void)frame;
 	unsigned char scancode = inb(0x60);
 	keyboard_feed_scancode(scancode);
@@ -115,22 +108,22 @@ func_ptr isr_table[] = {
 	[EXCEPTION_DOUBLE_FAULT] = exception_double_fault,
 	[EXCEPTION_GENERAL_PROTECTION_FAULT] = exception_general_protection_fault,
 	[EXCEPTION_PAGE_FAULT] = exception_page_fault,
-	[IRQ0+0] = irq_timer,
-	[IRQ0+1] = irq_keyboard,
-	[IRQ0+2] = irq_master_reset,
-	[IRQ0+3] = irq_master_reset,
-	[IRQ0+4] = irq_master_reset,
-	[IRQ0+5] = irq_master_reset,
-	[IRQ0+6] = irq_master_reset,
-	[IRQ0+7] = irq_master_reset,
-	[IRQ0+8] = irq_slave_reset,
-	[IRQ0+9] = irq_slave_reset,
-	[IRQ0+10] = irq_slave_reset,
-	[IRQ0+11] = irq_slave_reset,
-	[IRQ0+12] = irq_slave_reset,
-	[IRQ0+13] = irq_slave_reset,
-	[IRQ0+14] = irq_slave_reset,
-	[IRQ0+15] = irq_slave_reset
+	[IRQ0 + 0] = irq_timer,
+	[IRQ0 + 1] = irq_keyboard,
+	[IRQ0 + 2] = irq_master_reset,
+	[IRQ0 + 3] = irq_master_reset,
+	[IRQ0 + 4] = irq_master_reset,
+	[IRQ0 + 5] = irq_master_reset,
+	[IRQ0 + 6] = irq_master_reset,
+	[IRQ0 + 7] = irq_master_reset,
+	[IRQ0 + 8] = irq_slave_reset,
+	[IRQ0 + 9] = irq_slave_reset,
+	[IRQ0 + 10] = irq_slave_reset,
+	[IRQ0 + 11] = irq_slave_reset,
+	[IRQ0 + 12] = irq_slave_reset,
+	[IRQ0 + 13] = irq_slave_reset,
+	[IRQ0 + 14] = irq_slave_reset,
+	[IRQ0 + 15] = irq_slave_reset,
 };
 
 _Alignas(0x10) struct idt_entry {
@@ -144,13 +137,13 @@ _Alignas(0x10) struct idt_entry {
 } __attribute((packed)) idt[COUNTOF(isr_table)];
 
 void idt_set_descriptor(struct idt_entry *entry, func_ptr isr, uint8_t flags) {
-    entry->offset_low = (uint64_t)isr & 0xFFFF;
-    entry->segment_selector = 0x8;
-    entry->ist = 0;
-    entry->attributes = flags;
-    entry->offset_mid = ((uint64_t)isr >> 16) & 0xFFFF;
-    entry->offset_high = ((uint64_t)isr >> 32) & 0xFFFFFFFF;
-    entry->reserved = 0;
+	entry->offset_low = (uint64_t)isr & 0xFFFF;
+	entry->segment_selector = 0x8;
+	entry->ist = 0;
+	entry->attributes = flags;
+	entry->offset_mid = ((uint64_t)isr >> 16) & 0xFFFF;
+	entry->offset_high = ((uint64_t)isr >> 32) & 0xFFFFFFFF;
+	entry->reserved = 0;
 }
 
 void interrupts_init(void) {
@@ -175,7 +168,7 @@ void interrupts_init(void) {
 			idt_set_descriptor(idt + i, isr_table[i], 0xEE);
 		else
 			idt_set_descriptor(idt + i, isr_table[i], 0x8E);
-    }
+	}
 
 	load_idt(sizeof idt, idt);
 }

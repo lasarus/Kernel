@@ -25,7 +25,7 @@ uint64_t get_cr3(void);
 
 void print_interrupt(void);
 
-#define COUNTOF(X) (sizeof (X) / sizeof (*X))
+#define COUNTOF(X) (sizeof(X) / sizeof(*(X)))
 
 #define GIBIBYTE 0x40000000
 #define MEBIBYTE 0x100000
@@ -33,7 +33,7 @@ void print_interrupt(void);
 #define HIGHER_HALF_OFFSET 0xFFFFFFFFC0000000
 #define HIGHER_HALF_IDENTITY 0xFFFF800000000000
 
-#define offsetof(type, member)  __builtin_offsetof (type, member)
+#define offsetof(type, member) __builtin_offsetof(type, member)
 
 #define NULL ((void *)0)
 
@@ -47,6 +47,15 @@ struct timespec {
 	long tv_nsec;
 };
 
-#define ERROR(STR, ...) do { print("\nError: "); print(__FILE__); print(":"); print_int(__LINE__); print(" "); print(STR); hang_kernel(); } while(0)
+#define ERROR(STR, ...)      \
+	do {                     \
+		print("\nError: ");  \
+		print(__FILE__);     \
+		print(":");          \
+		print_int(__LINE__); \
+		print(" ");          \
+		print(STR);          \
+		hang_kernel();       \
+	} while (0)
 
 #endif

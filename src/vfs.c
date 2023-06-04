@@ -5,14 +5,14 @@
 struct inode_list {
 	struct inode_list *next;
 	uint64_t n_entries;
-	struct inode inodes[4096 / sizeof (struct inode) - 1];
+	struct inode inodes[4096 / sizeof(struct inode) - 1];
 };
 
 _Static_assert(sizeof(struct inode_list) <= 4096, "");
 
 static struct inode_list *head, *tail;
 
-struct inode *vfs_new_inode() {
+struct inode *vfs_new_inode(void) {
 	// Don't allow freeing nodes for now.
 	if (!head) {
 		head = memory_alloc();
@@ -63,7 +63,8 @@ struct inode *vfs_resolve(struct inode *root, const char *path) {
 
 		// Find next path.
 		const char *start = path;
-		for (; *path && *path != '/'; path++);
+		for (; *path && *path != '/'; path++)
+			;
 		int len = path - start;
 
 		if (len == 0) { // Special case: /dir//name.txt
@@ -73,13 +74,14 @@ struct inode *vfs_resolve(struct inode *root, const char *path) {
 
 		root = root->find_child(root, start, len);
 
-		if (!root) return NULL;
+		if (!root)
+			return NULL;
 	}
 
 	return root;
 }
 
-struct fd_table *vfs_init_fd_table() {
+struct fd_table *vfs_init_fd_table(void) {
 	struct fd_table *table = memory_alloc();
 
 	table->n_entries = 0;
@@ -114,24 +116,24 @@ void fd_table_set_standard_streams(struct fd_table *fd_table, int stdin, int std
 	fd_table->entries[2].index = stderr;
 }
 
-ssize_t vfs_read_file(int file, void *data, size_t count) {
-	if (file == -1)
+ssize_t vfs_read_file(int fd, void *data, size_t count) {
+	if (fd == -1)
 		ERROR("Invalid file handle\n");
-	struct file_table_entry *entry = &file_table.entries[file];
+	struct file_table_entry *entry = &file_table.entries[fd];
 	struct inode *inode = entry->inode;
 
 	return inode->read(inode, &entry->file_offset, data, count);
 }
 
-ssize_t vfs_write_file(int file, const void *data, size_t count) {
-	struct file_table_entry *entry = file_table.entries + file;
+ssize_t vfs_write_file(int fd, const void *data, size_t count) {
+	struct file_table_entry *entry = file_table.entries + fd;
 	struct inode *inode = entry->inode;
 
 	return inode->write(inode, &entry->file_offset, data, count);
 }
 
-size_t vfs_lseek(int file, size_t offset, int whence) {
-	struct file_table_entry *entry = file_table.entries + file;
+size_t vfs_lseek(int fd, size_t offset, int whence) {
+	struct file_table_entry *entry = file_table.entries + fd;
 	struct inode *inode = entry->inode;
 
 	size_t size = inode->size(inode);
@@ -142,8 +144,7 @@ size_t vfs_lseek(int file, size_t offset, int whence) {
 			offset = size;
 		return entry->file_offset = offset;
 
-	default:
-		ERROR("Not implemented\n");
+	default: ERROR("Not implemented\n");
 	}
 	return 0;
 }
@@ -162,10 +163,7 @@ int vfs_open_inode(struct inode *inode, unsigned char access_mode) {
 
 	struct file_table_entry *entry = file_table.entries + new_idx;
 
-	*entry = (struct file_table_entry) {
-		.inode = inode,
-		.access_mode = access_mode
-	};
+	*entry = (struct file_table_entry) { .inode = inode, .access_mode = access_mode };
 
 	return new_idx;
 }

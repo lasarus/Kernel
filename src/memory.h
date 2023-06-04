@@ -25,8 +25,8 @@ void set_kernel_stack(uint64_t stack);
 
 #define PML4_PAGE(INDEX) (0xffff000000000000 | ((unsigned long long)(INDEX) << (9 * 3 + 12)))
 
- // Modifying these also requires modifying syscall_handler.s.
-#define KERNEL_STACK_SIZE (8 * KIBIBYTE)
+// Modifying these also requires modifying syscall_handler.s.
+#define KERNEL_STACK_SIZE (8ull * KIBIBYTE)
 #define KERNEL_STACK_POS PML4_PAGE(510)
 
 #endif

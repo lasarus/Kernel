@@ -1,13 +1,10 @@
 #include "common.h"
-#include "vga_text.h"
 #include "scheduler.h"
+#include "vga_text.h"
 
 // I'm trying to emulate Linux syscalls a little bit.
 uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t rax) {
 	(void)arg0, (void)arg1, (void)arg2, (void)arg3, (void)arg4;
-	/* print("Syscall: "); */
-	/* print_int(rax); */
-	/* print("\n"); */
 	switch (rax) {
 	case 0: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
@@ -34,9 +31,7 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 	} break;
 
 	case 59: {
-		return scheduler_execve((const char *)arg0,
-								(const char *const *)arg1,
-								(const char *const *)arg2);
+		return scheduler_execve((const char *)arg0, (const char *const *)arg1, (const char *const *)arg2);
 	} break;
 
 	case 60: {

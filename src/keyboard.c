@@ -1,10 +1,8 @@
 #include "keyboard.h"
-#include "vga_text.h"
 #include "scheduler.h"
+#include "vga_text.h"
 
 #define BUFFER_SIZE 1024
-
-static char input_buffer[BUFFER_SIZE];
 
 enum {
 	SCAN_ESCAPE = 0x01,
@@ -95,15 +93,15 @@ enum {
 	SCAN_COUNT
 };
 
-static char scancode_map[] = {
-	[0x02] = '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
-	[0x0F] = '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
-	[0x1E] = 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
-	[0x2B] = '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',
-	[0x37] = '*',
-	[0x39] = ' ',
-	[0x47] = '7', '8', '9', '-', '4', '5', '6', '+', '1', '2', '3', '0', '.',
+static const char scancode_map[] = {
+	[0x02] = '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-',          '=',          [0x0F] = '\t',
+	'q',          'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[',          ']',          '\n',
+	[0x1E] = 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'',         '`',          [0x2B] = '\\',
+	'z',          'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', [0x37] = '*', [0x39] = ' ', [0x47] = '7',
+	'8',          '9', '-', '4', '5', '6', '+', '1', '2', '3', '0',          '.',
 };
+
+static char input_buffer[BUFFER_SIZE];
 
 static unsigned char is_pressed[SCAN_COUNT];
 static unsigned char caps_lock = 0;
@@ -111,15 +109,13 @@ static unsigned char caps_lock = 0;
 static int line_buffer_idx = 0;
 static char line_buffer[256];
 
-int circular_buffer_start = 0,
-	circular_buffer_idx = 0,
-	available = 4095;
+static int circular_buffer_start = 0, circular_buffer_idx = 0, available = 4095;
 static uint8_t circular_buffer[4096];
 
 static struct task_wait buffer_wait = TASK_WAIT_DEFAULT;
 
 // TODO: Don't fail when buffer is longer than 4096.
-void circular_buffer_add(char c) {
+static void circular_buffer_add(char c) {
 	if (!available)
 		return;
 
@@ -131,7 +127,7 @@ void circular_buffer_add(char c) {
 	available--;
 }
 
-int circular_buffer_take(char *c) {
+static int circular_buffer_take(char *c) {
 	if (available == 4095)
 		return 0;
 
@@ -145,7 +141,7 @@ int circular_buffer_take(char *c) {
 	return 1;
 }
 
-void flush_line(void) {
+static void flush_line(void) {
 	for (int i = 0; i < line_buffer_idx; i++)
 		circular_buffer_add(line_buffer[i]);
 	line_buffer_idx = 0;
@@ -153,7 +149,7 @@ void flush_line(void) {
 	scheduler_unwait(&buffer_wait);
 }
 
-void add_char_to_buffer(char c) {
+static void add_char_to_buffer(char c) {
 	if (line_buffer_idx >= (int)COUNTOF(line_buffer))
 		return;
 
@@ -161,12 +157,11 @@ void add_char_to_buffer(char c) {
 
 	print_char(c);
 
-	if (c == '\n') {
+	if (c == '\n')
 		flush_line();
-	}
 }
 
-void remove_char_from_buffer(void) {
+static void remove_char_from_buffer(void) {
 	if (line_buffer_idx == 0)
 		return;
 
@@ -174,12 +169,11 @@ void remove_char_from_buffer(void) {
 	line_buffer_idx--;
 }
 
-int toupper(int c) {
+static int toupper(int c) {
 	return (unsigned)c - 'a' < 26 ? c ^ 32 : c;
 }
 
 void keyboard_feed_scancode(unsigned char scancode) {
-	//if (scancode == 0x2a)
 	int pressed = 1;
 	if (scancode >= 0x81 && scancode <= 0xD7) {
 		pressed = 0;
@@ -198,9 +192,7 @@ void keyboard_feed_scancode(unsigned char scancode) {
 	int uppercase = caps_lock || is_pressed[SCAN_LEFT_SHIFT] || is_pressed[SCAN_RIGHT_SHIFT];
 
 	// If is printable.
-	if (scancode < sizeof scancode_map / sizeof *scancode_map &&
-		scancode_map[scancode] != 0 &&
-		pressed) {
+	if (scancode < COUNTOF(scancode_map) && scancode_map[scancode] && pressed) {
 		char c = scancode_map[scancode];
 		if (uppercase)
 			c = toupper(c);
@@ -219,8 +211,7 @@ static ssize_t keyboard_file_read(struct inode *inode, size_t *offset, void *dat
 
 	while (available < 4095 || scheduler_wait(&buffer_wait)) {
 		char c;
-		while ((size_t)read < count &&
-			   circular_buffer_take(&c)) {
+		while ((size_t)read < count && circular_buffer_take(&c)) {
 			user_buffer[read++] = c;
 		}
 
@@ -232,6 +223,7 @@ static ssize_t keyboard_file_read(struct inode *inode, size_t *offset, void *dat
 }
 
 static ssize_t keyboard_file_write(struct inode *inode, size_t *offset, const void *data, size_t count) {
+	(void)inode, (void)offset, (void)data, (void)count;
 	return 0;
 }
 

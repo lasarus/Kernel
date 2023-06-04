@@ -1,10 +1,10 @@
 #include "scheduler.h"
+#include "elf_loader.h"
+#include "interrupts.h"
 #include "memory.h"
 #include "taskswitch.h"
-#include "vga_text.h"
-#include "interrupts.h"
 #include "vfs.h"
-#include "elf_loader.h"
+#include "vga_text.h"
 
 #define MAX_TASKS 16
 
@@ -34,13 +34,13 @@ int scheduler_execve(const char *filename, const char *const *argv, const char *
 	// Set up user stack.
 	memory_allocate_range(current_task->pages, user_stack_pos, NULL, user_stack_size, 1);
 
-	//disasm((void *)rip, 16);
+	// disasm((void *)rip, 16);
 
 	usermode_jump(user_stack_size + user_stack_pos, rip, 0, 0, 0);
 	return 0;
 }
 
-int get_next_task() {
+int get_next_task(void) {
 	static int prev_task = 0;
 
 	int next_task = prev_task;
@@ -53,16 +53,13 @@ int get_next_task() {
 		int resume = 0;
 		switch (tasks[next_task].status) {
 		case STATUS_CLOCK_SLEEP:
-			if ((tasks[next_task].sleep_until < timer) ||
-				(tasks[next_task].sleep_until > (timer - UINT64_MAX / 2))) {
+			if ((tasks[next_task].sleep_until < timer) || (tasks[next_task].sleep_until > (timer - UINT64_MAX / 2))) {
 				tasks[next_task].status = STATUS_RUNNING;
 				resume = 1;
 			}
 			break;
 
-		case STATUS_RUNNING:
-			resume = 1;
-			break;
+		case STATUS_RUNNING: resume = 1; break;
 
 		default: break;
 		}
@@ -75,7 +72,7 @@ int get_next_task() {
 	return next_task;
 }
 
-struct task *new_task() {
+struct task *new_task(void) {
 	// First try to find a dead task to replace.
 	int idx = -1;
 	for (int i = 0; i < n_tasks; i++) {
@@ -101,12 +98,10 @@ struct task *new_task() {
 
 void scheduler_init(page_table_t kernel_table) {
 	current_task = new_task();
-	*current_task = (struct task) {
-		.pages = kernel_table,
-		.cr3 = memory_get_cr3(kernel_table),
-		.fd_table = vfs_init_fd_table(),
-		.pid = pid_counter++
-	};
+	*current_task = (struct task) { .pages = kernel_table,
+		                            .cr3 = memory_get_cr3(kernel_table),
+		                            .fd_table = vfs_init_fd_table(),
+		                            .pid = pid_counter++ };
 
 	set_kernel_stack(KERNEL_STACK_POS + KERNEL_STACK_SIZE);
 }
@@ -116,8 +111,7 @@ void scheduler_update(void) {
 	int next_task = get_next_task();
 
 	for (int i = 0; i < n_tasks; i++) {
-		if (tasks[i].status == STATUS_CLEANUP &&
-			current_task - tasks != i) {
+		if (tasks[i].status == STATUS_CLEANUP && current_task - tasks != i) {
 			tasks[i].status = STATUS_DEAD;
 			memory_page_table_delete(tasks[i].pages, 0);
 		}
@@ -161,8 +155,7 @@ int scheduler_fork(void) {
 
 	if (new_process)
 		return 0;
-	else
-		return task->pid;
+	return task->pid;
 }
 
 int scheduler_wait(struct task_wait *wait) {
@@ -178,14 +171,12 @@ int scheduler_wait(struct task_wait *wait) {
 }
 
 int task_is_alive(struct task *task) {
-	return task->status != STATUS_DEAD &&
-		task->status != STATUS_CLEANUP;
+	return task->status != STATUS_DEAD && task->status != STATUS_CLEANUP;
 }
 
 static struct task *get_task_from_pid(int pid) {
 	for (int i = 0; i < n_tasks; i++) {
-		if (tasks[i].pid == pid &&
-			task_is_alive(tasks + i)) {
+		if (tasks[i].pid == pid && task_is_alive(tasks + i)) {
 			return tasks + i;
 		}
 	}
@@ -205,6 +196,7 @@ void scheduler_unwait(struct task_wait *wait) {
 }
 
 void scheduler_exit(int error_code) {
+	(void)error_code;
 	current_task->status = STATUS_CLEANUP;
 
 	scheduler_update();
