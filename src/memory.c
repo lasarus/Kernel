@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#include <stddef.h>
+
 struct memory_list {
 	struct memory_list *next;
 	uint64_t n_entries;
@@ -156,8 +158,8 @@ static struct gdt {
 		{ 0 },
 		{ .readable = 1, .code = 1, .code_or_data = 1, .dpl = 0, .present = 1, .long_mode = 1 },
 		{ .readable = 1, .code = 0, .code_or_data = 1, .present = 1 },
-		{ .readable = 1, .code = 1, .code_or_data = 1, .dpl = 3, .present = 1, .long_mode = 1 },
 		{ .readable = 1, .code = 0, .dpl = 3, .code_or_data = 1, .present = 1 },
+		{ .readable = 1, .code = 1, .code_or_data = 1, .dpl = 3, .present = 1, .long_mode = 1 },
 	},
 	.tss_descriptor = { 0 }, // Will be initailized at runtime, due to some
 	                         // bit-twiddling needed.
@@ -452,5 +454,5 @@ void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uin
 void set_kernel_stack(uint64_t stack) {
 	tss.rsp0 = stack;
 	gdt.tss_descriptor.type = 9;
-	load_tss(40);
+	load_tss(offsetof(struct gdt, tss_descriptor));
 }

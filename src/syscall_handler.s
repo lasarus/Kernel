@@ -85,9 +85,13 @@ syscall_init:
 	xorq %rdx, %rdx
 	wrmsr
 
-	# IA32_STAR/STAR = SYSRET CS SS : SYSCALL CS SS : ... # No need to modify EFLAGS on syscall.
+	# IA32_STAR/STAR = SYSRET CS SS (X) : SYSCALL CS SS (Y) : ...
+	# Note that sysretq sets CS to X + 16 and SS to X + 8.
+	# And syscall sets CS to Y and SS to Y + 8.
+	# Therefore user space CS needs to come after SS in the GDT.
+	# See 6.1.1 SYSCALL and SYSRET in AMD64 Volume 2.
 	movl $0xC0000081, %ecx # See page 709 of the AMD64 Volume 2 manual.
-	movl $0x001B0008, %edx
+	movl $0x00130008, %edx
 	wrmsr
 
 	ret

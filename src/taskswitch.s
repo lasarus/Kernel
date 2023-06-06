@@ -23,7 +23,6 @@ switch_task_to: # void switch_task_to(struct task *task)
 	# When returning from this function, we shall be back in the task that called it to begin with.
 	# Assuming that we are already in ring 0 when calling this (which is kind of obvious.)
 
-	cli
 	movq current_task, %rax
 	movq $_on_return, 0(%rax)
 	movq %rax, 8 * 1(%rax)
@@ -73,7 +72,6 @@ switch_task_to: # void switch_task_to(struct task *task)
 
 	movq 0(%rax), %rax
 
-	sti
 	retq
 
 _to_userland:	
