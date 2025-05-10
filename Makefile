@@ -18,3 +18,6 @@ hello.elf: userland/hello.c userland/syscalls.s
 
 shell.elf: userland/shell.c userland/syscalls.s
 	gcc -T userland/userland_elf.ld $^ -o shell.elf -no-pie -ffreestanding -nostdlib -mgeneral-regs-only -fno-stack-protector
+
+reformat:
+	clang-format -i src/*.[ch]

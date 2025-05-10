@@ -216,8 +216,8 @@ page_table_t memory_new_page_table(void) {
 	return new_table;
 }
 
-#define GET_TABLE(FAA) (void *)(((FAA)&0x00Cffffffffff000) + HIGHER_HALF_IDENTITY)
-#define MAKE_TABLE(ADDRESS) ((0x1 | 0x2 | 0x4) + (uint64_t)(ADDRESS)-HIGHER_HALF_IDENTITY)
+#define GET_TABLE(FAA) (void *)(((FAA) & 0x00Cffffffffff000) + HIGHER_HALF_IDENTITY)
+#define MAKE_TABLE(ADDRESS) ((0x1 | 0x2 | 0x4) + (uint64_t)(ADDRESS) - HIGHER_HALF_IDENTITY)
 
 void copy_pt(struct pt *dest, struct pt *src) {
 	for (int i = 0; i < 512; i++) {

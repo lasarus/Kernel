@@ -35,8 +35,7 @@ struct task_wait {
 	int pid;
 };
 
-#define TASK_WAIT_DEFAULT \
-	{ .pid = -1 }
+#define TASK_WAIT_DEFAULT { .pid = -1 }
 
 // Returns 0 if not able to wait.
 int scheduler_wait(struct task_wait *wait);
