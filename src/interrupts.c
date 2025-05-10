@@ -105,25 +105,25 @@ enum {
 
 typedef void (*func_ptr)();
 func_ptr isr_table[] = {
-	[EXCEPTION_DOUBLE_FAULT] = exception_double_fault,
-	[EXCEPTION_GENERAL_PROTECTION_FAULT] = exception_general_protection_fault,
-	[EXCEPTION_PAGE_FAULT] = exception_page_fault,
-	[IRQ0 + 0] = irq_timer,
-	[IRQ0 + 1] = irq_keyboard,
-	[IRQ0 + 2] = irq_master_reset,
-	[IRQ0 + 3] = irq_master_reset,
-	[IRQ0 + 4] = irq_master_reset,
-	[IRQ0 + 5] = irq_master_reset,
-	[IRQ0 + 6] = irq_master_reset,
-	[IRQ0 + 7] = irq_master_reset,
-	[IRQ0 + 8] = irq_slave_reset,
-	[IRQ0 + 9] = irq_slave_reset,
-	[IRQ0 + 10] = irq_slave_reset,
-	[IRQ0 + 11] = irq_slave_reset,
-	[IRQ0 + 12] = irq_slave_reset,
-	[IRQ0 + 13] = irq_slave_reset,
-	[IRQ0 + 14] = irq_slave_reset,
-	[IRQ0 + 15] = irq_slave_reset,
+	[EXCEPTION_DOUBLE_FAULT] = (func_ptr)exception_double_fault,
+	[EXCEPTION_GENERAL_PROTECTION_FAULT] = (func_ptr)exception_general_protection_fault,
+	[EXCEPTION_PAGE_FAULT] = (func_ptr)exception_page_fault,
+	[IRQ0 + 0] = (func_ptr)irq_timer,
+	[IRQ0 + 1] = (func_ptr)irq_keyboard,
+	[IRQ0 + 2] = (func_ptr)irq_master_reset,
+	[IRQ0 + 3] = (func_ptr)irq_master_reset,
+	[IRQ0 + 4] = (func_ptr)irq_master_reset,
+	[IRQ0 + 5] = (func_ptr)irq_master_reset,
+	[IRQ0 + 6] = (func_ptr)irq_master_reset,
+	[IRQ0 + 7] = (func_ptr)irq_master_reset,
+	[IRQ0 + 8] = (func_ptr)irq_slave_reset,
+	[IRQ0 + 9] = (func_ptr)irq_slave_reset,
+	[IRQ0 + 10] = (func_ptr)irq_slave_reset,
+	[IRQ0 + 11] = (func_ptr)irq_slave_reset,
+	[IRQ0 + 12] = (func_ptr)irq_slave_reset,
+	[IRQ0 + 13] = (func_ptr)irq_slave_reset,
+	[IRQ0 + 14] = (func_ptr)irq_slave_reset,
+	[IRQ0 + 15] = (func_ptr)irq_slave_reset,
 };
 
 _Alignas(0x10) struct idt_entry {
@@ -160,7 +160,7 @@ void interrupts_init(void) {
 
 	for (unsigned i = 0; i < COUNTOF(isr_table); i++) {
 		if (!isr_table[i])
-			isr_table[i] = unhandled_interrupt;
+			isr_table[i] = (func_ptr)unhandled_interrupt;
 	}
 
 	for (unsigned i = 0; i < COUNTOF(idt); i++) {
