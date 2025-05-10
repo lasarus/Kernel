@@ -36,7 +36,6 @@ load_gdt: # void load_gdt(uint16_t limit, void *base)
 	movw %di, -16(%rsp)
 	movq %rsi, -14(%rsp)
 	lgdt -16(%rsp)
-	sti
 	retq
 
 	.global load_tss
