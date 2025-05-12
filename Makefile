@@ -10,7 +10,7 @@ clean:
 	rm -rf hello.elf
 	rm -rf shell.elf
 
-kernel.bin: src/*.s src/*.c
+kernel.bin: src/*.s src/*.c src/*.h
 	gcc -T src/link.ld -o kernel.bin $^ --freestanding -nostdlib -no-pie -mgeneral-regs-only -mno-red-zone -fno-stack-protector -fno-asynchronous-unwind-tables -mcmodel=kernel -fno-pie -fno-stack-protector -Os -Wall -Werror -Wextra -pedantic -Os -Wno-unused-variable -Wno-unused-parameter
 
 hello.elf: userland/hello.c userland/syscalls.s
