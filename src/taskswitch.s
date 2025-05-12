@@ -44,7 +44,14 @@ switch_task_to: # void switch_task_to(struct task *task)
 
 	# State is now saved.
 	
-	movq 8 * 17(%rdi), %rax
+	# We need to convert the virtual page table address to a physical address.
+	# This is done by subtracting 0xFFFF800000000000, which is the same thing as adding
+	# -0xFFFF800000000000 = ~0xFFFF800000000000+1 = 0x800000000000 = 1<<47.
+	# So adding 1<<47 to our virtual address will give the corresponding physical
+	# address to load into %cr3.
+	movl $1, %eax
+	salq $47, %rax
+	addq 8 * 17(%rdi), %rax
 	movq %rax, %cr3
 
 	movq %rdi, current_task

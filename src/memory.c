@@ -381,10 +381,6 @@ void memory_page_table_move_pdpt(page_table_t old, int dest, int src) {
 	reload_cr3();
 }
 
-uint64_t memory_get_cr3(page_table_t table) {
-	return VIRTUAL_TO_PHYSICAL(table);
-}
-
 void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user) {
 	uint16_t a = (virtual_addr >> (12 + 9 * 0)) & 0x1FF;
 	uint16_t b = (virtual_addr >> (12 + 9 * 1)) & 0x1FF;

@@ -19,7 +19,6 @@ void memory_page_table_move_pdpt(page_table_t old, int dest, int src);
 
 void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user);
 void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uint64_t size, int user);
-uint64_t memory_get_cr3(page_table_t table);
 
 void set_kernel_stack(uint64_t stack);
 

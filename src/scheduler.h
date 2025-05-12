@@ -15,16 +15,16 @@ enum {
 	STATUS_DEAD,
 };
 
+// This struct is used in taskswitch.s, sync with that code as well.
 struct task {
 	uint64_t rip, gp_regs[16];
-	uint64_t cr3;
+	page_table_t pages;
 	uint8_t is_usermode;
 
 	uint8_t status;
 	uint64_t sleep_until;
 	// TODO: XMM0-15
 
-	page_table_t pages;
 	int pid;
 	int parent;
 

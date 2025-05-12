@@ -100,10 +100,11 @@ struct task *new_task(void) {
 
 void scheduler_init(page_table_t kernel_table) {
 	current_task = new_task();
-	*current_task = (struct task) { .pages = kernel_table,
-		                            .cr3 = memory_get_cr3(kernel_table),
-		                            .fd_table = vfs_init_fd_table(),
-		                            .pid = pid_counter++ };
+	*current_task = (struct task) {
+		.pages = kernel_table,
+		.fd_table = vfs_init_fd_table(),
+		.pid = pid_counter++,
+	};
 
 	set_kernel_stack(KERNEL_STACK_POS + KERNEL_STACK_SIZE);
 }
@@ -144,7 +145,6 @@ void setup_fork(struct task *old, struct task *new) {
 	new->pages = memory_page_table_copy(old->pages);
 	new->fd_table = vfs_copy_fd_table(old->fd_table);
 	new->is_usermode = 0;
-	new->cr3 = memory_get_cr3(new->pages);
 	new->pid = pid_counter++;
 	new->status = STATUS_RUNNING;
 }

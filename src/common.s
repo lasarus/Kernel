@@ -49,7 +49,7 @@ load_cr3: # void load_cr3(void *pml4_ptr);
 	retq
 	
 	.global reload_cr3
-reload_cr3: # void load_cr3(void);
+reload_cr3: # void reload_cr3(void);
 	movq %cr3, %rdi
 	movq %rdi, %cr3
 	retq
