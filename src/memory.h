@@ -29,4 +29,7 @@ void set_kernel_stack(uint64_t stack);
 #define KERNEL_STACK_SIZE (8ull * KIBIBYTE)
 #define KERNEL_STACK_POS PML4_PAGE(510)
 
+#define PHYSICAL_TO_VIRTUAL(X) ((void *)((uintptr_t)(X) + HIGHER_HALF_IDENTITY))
+#define VIRTUAL_TO_PHYSICAL(X) ((uintptr_t)(X) - HIGHER_HALF_IDENTITY)
+
 #endif

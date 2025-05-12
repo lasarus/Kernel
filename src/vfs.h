@@ -2,7 +2,6 @@
 #define VFS_H
 
 #include "common.h"
-#include "memory.h"
 
 struct inode {
 	enum {

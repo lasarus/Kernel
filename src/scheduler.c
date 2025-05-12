@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "common.h"
 #include "elf_loader.h"
 #include "interrupts.h"
 #include "memory.h"
@@ -17,7 +18,7 @@ static int pid_counter = 0;
 void disasm(uint8_t *addr, int len);
 
 int scheduler_execve(const char *filename, const char *const *argv, const char *const *envp) {
-	int len = strlen(filename);
+	size_t len = strlen(filename);
 
 	uint64_t rip;
 	if (elf_loader_stage(current_task->pages, filename, &rip)) {
@@ -25,6 +26,7 @@ int scheduler_execve(const char *filename, const char *const *argv, const char *
 		return 1;
 	}
 
+	// We are now commited to a new executable. The old one can be thrown away.
 	memory_page_table_delete(current_task->pages, 1);
 	memory_page_table_move_pdpt(current_task->pages, 0, ELF_STAGE_INDEX);
 

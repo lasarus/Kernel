@@ -166,6 +166,7 @@ static struct gdt {
 };
 
 page_table_t memory_init(struct multiboot *mb) {
+	// Offset by HIGHER_HALF_OFFSET due to the initial paging.
 	current_pml4 = (void *)(get_cr3() + HIGHER_HALF_OFFSET);
 
 	head = &last_elem;
@@ -189,7 +190,7 @@ page_table_t memory_init(struct multiboot *mb) {
 		for (; start < mmap->length + mmap->base_addr - 4096; start += 4096) {
 			if (start < first_free)
 				continue;
-			memory_free((void *)(start + HIGHER_HALF_IDENTITY));
+			memory_free(PHYSICAL_TO_VIRTUAL(start));
 		}
 	}
 
@@ -205,7 +206,7 @@ page_table_t memory_init(struct multiboot *mb) {
 
 	load_gdt(sizeof gdt - 1, (void *)&gdt);
 
-	return (void *)((uint64_t)current_pml4 - HIGHER_HALF_OFFSET + HIGHER_HALF_IDENTITY);
+	return PHYSICAL_TO_VIRTUAL((uintptr_t)current_pml4 - HIGHER_HALF_OFFSET);
 }
 
 page_table_t memory_new_page_table(void) {
@@ -216,8 +217,8 @@ page_table_t memory_new_page_table(void) {
 	return new_table;
 }
 
-#define GET_TABLE(FAA) (void *)(((FAA) & 0x00Cffffffffff000) + HIGHER_HALF_IDENTITY)
-#define MAKE_TABLE(ADDRESS) ((0x1 | 0x2 | 0x4) + (uint64_t)(ADDRESS) - HIGHER_HALF_IDENTITY)
+#define GET_TABLE(FAA) PHYSICAL_TO_VIRTUAL((FAA) & 0x00Cffffffffff000)
+#define MAKE_TABLE(ADDRESS) ((0x1 | 0x2 | 0x4) + VIRTUAL_TO_PHYSICAL(ADDRESS))
 
 void copy_pt(struct pt *dest, struct pt *src) {
 	for (int i = 0; i < 512; i++) {
@@ -234,7 +235,7 @@ void copy_pt(struct pt *dest, struct pt *src) {
 		}
 
 		dest->entries[i].flags_and_address =
-			(src->entries[i].flags_and_address & 0xfff) | ((uint64_t)dest_memory - HIGHER_HALF_IDENTITY);
+			(src->entries[i].flags_and_address & 0xfff) | VIRTUAL_TO_PHYSICAL(dest_memory);
 	}
 }
 
@@ -250,8 +251,7 @@ void copy_pd(struct pd *dest, struct pd *src) {
 
 		copy_pt(dst_pt, src_pt);
 
-		dest->entries[i].flags_and_address =
-			(src->entries[i].flags_and_address & 0xfff) | ((uint64_t)dst_pt - HIGHER_HALF_IDENTITY);
+		dest->entries[i].flags_and_address = (src->entries[i].flags_and_address & 0xfff) | VIRTUAL_TO_PHYSICAL(dst_pt);
 	}
 }
 
@@ -267,8 +267,7 @@ void copy_pdpt(struct pdpt *dest, struct pdpt *src) {
 
 		copy_pd(dst_pd, src_pd);
 
-		dest->entries[i].flags_and_address =
-			(src->entries[i].flags_and_address & 0xfff) | ((uint64_t)dst_pd - HIGHER_HALF_IDENTITY);
+		dest->entries[i].flags_and_address = (src->entries[i].flags_and_address & 0xfff) | VIRTUAL_TO_PHYSICAL(dst_pd);
 	}
 }
 
@@ -285,7 +284,7 @@ void copy_pml4(struct pml4 *dest, struct pml4 *src) {
 		copy_pdpt(dst_pdpt, src_pdpt);
 
 		dest->entries[i].flags_and_address =
-			(src->entries[i].flags_and_address & 0xfff) | ((uint64_t)dst_pdpt - HIGHER_HALF_IDENTITY);
+			(src->entries[i].flags_and_address & 0xfff) | VIRTUAL_TO_PHYSICAL(dst_pdpt);
 	}
 }
 
@@ -383,7 +382,7 @@ void memory_page_table_move_pdpt(page_table_t old, int dest, int src) {
 }
 
 uint64_t memory_get_cr3(page_table_t table) {
-	return (uint64_t)table - HIGHER_HALF_IDENTITY;
+	return VIRTUAL_TO_PHYSICAL(table);
 }
 
 void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user) {
@@ -396,39 +395,39 @@ void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr,
 
 	struct pdpt *pdpt = 0;
 	if (pml4->entries[d].flags_and_address & 1) {
-		pdpt = (void *)((pml4->entries[d].flags_and_address & 0x00Cffffffffff000) + HIGHER_HALF_IDENTITY);
+		pdpt = PHYSICAL_TO_VIRTUAL(pml4->entries[d].flags_and_address & 0x00Cffffffffff000);
 	} else {
 		pdpt = memory_alloc();
 		for (unsigned i = 0; i < 512; i++)
 			pdpt->entries[i].flags_and_address = 0;
-		pml4->entries[d].flags_and_address = (0x1 | 0x2 | 0x4) + (uint64_t)pdpt - HIGHER_HALF_IDENTITY;
+		pml4->entries[d].flags_and_address = (0x1 | 0x2 | 0x4) + VIRTUAL_TO_PHYSICAL(pdpt);
 	}
 
 	struct pdpt *pd = 0;
 	if (pdpt->entries[c].flags_and_address & 1) {
-		pd = (void *)((pdpt->entries[c].flags_and_address & 0x00Cffffffffff000) + HIGHER_HALF_IDENTITY);
+		pd = PHYSICAL_TO_VIRTUAL(pdpt->entries[c].flags_and_address & 0x00Cffffffffff000);
 	} else {
 		pd = memory_alloc();
 		for (unsigned i = 0; i < 512; i++)
 			pd->entries[i].flags_and_address = 0;
-		pdpt->entries[c].flags_and_address = (0x1 | 0x2 | 0x4) + (uint64_t)pd - HIGHER_HALF_IDENTITY;
+		pdpt->entries[c].flags_and_address = (0x1 | 0x2 | 0x4) + VIRTUAL_TO_PHYSICAL(pd);
 	}
 
 	struct pdpt *pt = 0;
 	if (pd->entries[b].flags_and_address & 1) {
-		pt = (void *)((pd->entries[b].flags_and_address & 0x00Cffffffffff000) + HIGHER_HALF_IDENTITY);
+		pt = PHYSICAL_TO_VIRTUAL(pd->entries[b].flags_and_address & 0x00Cffffffffff000);
 	} else {
 		pt = memory_alloc();
 		for (unsigned i = 0; i < 512; i++)
 			pt->entries[i].flags_and_address = 0;
-		pd->entries[b].flags_and_address = (0x1 | 0x2 | 0x4) + (uint64_t)pt - HIGHER_HALF_IDENTITY;
+		pd->entries[b].flags_and_address = (0x1 | 0x2 | 0x4) + VIRTUAL_TO_PHYSICAL(pt);
 	}
 
 	uint64_t flags = 0x1 | 0x2;
 	if (user)
 		flags |= 0x4;
-	uint64_t physical_addr = (uint64_t)high_addr - HIGHER_HALF_IDENTITY;
-	pt->entries[a].flags_and_address = flags | (uint64_t)physical_addr;
+	uint64_t physical_addr = VIRTUAL_TO_PHYSICAL(high_addr);
+	pt->entries[a].flags_and_address = flags | physical_addr;
 }
 
 void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uint64_t size, int user) {
