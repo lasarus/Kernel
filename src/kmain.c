@@ -5,7 +5,6 @@
 #include "multiboot.h"
 #include "scheduler.h"
 #include "syscall.h"
-#include "taskswitch.h"
 #include "terminal.h"
 #include "tmpfs.h"
 #include "vfs.h"
@@ -15,7 +14,7 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	(void)magic;
 	clear_screen();
 
-	page_table_t kernel_table = memory_init(mb);
+	struct pml4 *kernel_table = memory_init(mb);
 	interrupts_init();
 	syscall_init();
 	vfs_init();

@@ -18,7 +18,7 @@ enum {
 // This struct is used in taskswitch.s, sync with that code as well.
 struct task {
 	uint64_t rip, gp_regs[16];
-	page_table_t pages;
+	struct pml4 *pages;
 	uint8_t is_usermode;
 
 	uint8_t status;
@@ -43,7 +43,7 @@ void scheduler_unwait(struct task_wait *wait);
 
 void scheduler_add_task(const char *path, int stdin, int stdout, int stderr);
 void scheduler_update(void);
-void scheduler_init(page_table_t kernel_table);
+void scheduler_init(struct pml4 *kernel_table);
 int scheduler_execve(const char *filename, const char *const *argv, const char *const *envp);
 
 void scheduler_suspend(void);

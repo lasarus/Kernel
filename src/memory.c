@@ -1,5 +1,4 @@
 #include "memory.h"
-#include "vga_text.h"
 
 #include "common.h"
 
@@ -39,38 +38,28 @@ void memory_free(void *ptr) {
 	}
 }
 
-struct pml4_entry {
-	// TODO: Make this a bit cleaner.
-	// Perhaps using bit-fields.
-	uint64_t flags_and_address;
-};
-
 struct pml4 {
-	struct pml4_entry entries[512];
-};
-
-struct pdpt_entry {
-	uint64_t flags_and_address;
+	struct {
+		uint64_t flags_and_address;
+	} entries[512];
 };
 
 struct pdpt {
-	struct pdpt_entry entries[512];
-};
-
-struct pd_entry {
-	uint64_t flags_and_address;
+	struct {
+		uint64_t flags_and_address;
+	} entries[512];
 };
 
 struct pd {
-	struct pd_entry entries[512];
-};
-
-struct pt_entry {
-	uint64_t flags_and_address;
+	struct {
+		uint64_t flags_and_address;
+	} entries[512];
 };
 
 struct pt {
-	struct pt_entry entries[512];
+	struct {
+		uint64_t flags_and_address;
+	} entries[512];
 };
 
 _Alignas(4096) static struct pdpt kernel_pdpt_table_large; // Maps first 512GiB.
@@ -165,7 +154,7 @@ static struct gdt {
 	                         // bit-twiddling needed.
 };
 
-page_table_t memory_init(struct multiboot *mb) {
+struct pml4 *memory_init(struct multiboot *mb) {
 	// Offset by HIGHER_HALF_OFFSET due to the initial paging.
 	current_pml4 = (void *)(get_cr3() + HIGHER_HALF_OFFSET);
 
@@ -209,7 +198,7 @@ page_table_t memory_init(struct multiboot *mb) {
 	return PHYSICAL_TO_VIRTUAL((uintptr_t)current_pml4 - HIGHER_HALF_OFFSET);
 }
 
-page_table_t memory_new_page_table(void) {
+struct pml4 *memory_new_page_table(void) {
 	struct pml4 *new_table = memory_alloc();
 	for (unsigned i = 0; i < 512; i++)
 		new_table->entries[i].flags_and_address = 0;
@@ -288,12 +277,10 @@ void copy_pml4(struct pml4 *dest, struct pml4 *src) {
 	}
 }
 
-page_table_t memory_page_table_copy(page_table_t old) {
-	page_table_t new = memory_new_page_table();
+struct pml4 *memory_page_table_copy(struct pml4 *old) {
+	struct pml4 *new = memory_new_page_table();
 
-	struct pml4 *old_table = old, *new_table = new;
-
-	copy_pml4(new_table, old_table);
+	copy_pml4(new, old);
 
 	return new;
 }
@@ -356,11 +343,11 @@ void delete_pml4(struct pml4 *table, int only_user) {
 	reload_cr3();
 }
 
-void memory_page_table_delete(page_table_t old, int only_user) {
+void memory_page_table_delete(struct pml4 *old, int only_user) {
 	delete_pml4(old, only_user);
 }
 
-void memory_page_table_delete_pdpt(page_table_t old, int idx) {
+void memory_page_table_delete_pdpt(struct pml4 *old, int idx) {
 	if (!old->entries[idx].flags_and_address)
 		return;
 
@@ -374,14 +361,14 @@ void memory_page_table_delete_pdpt(page_table_t old, int idx) {
 	reload_cr3();
 }
 
-void memory_page_table_move_pdpt(page_table_t old, int dest, int src) {
+void memory_page_table_move_pdpt(struct pml4 *old, int dest, int src) {
 	old->entries[dest] = old->entries[src];
 	old->entries[src].flags_and_address = 0;
 
 	reload_cr3();
 }
 
-void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr, int user) {
+void memory_page_add(struct pml4 *table, uint64_t virtual_addr, void *high_addr, int user) {
 	uint16_t a = (virtual_addr >> (12 + 9 * 0)) & 0x1FF;
 	uint16_t b = (virtual_addr >> (12 + 9 * 1)) & 0x1FF;
 	uint16_t c = (virtual_addr >> (12 + 9 * 2)) & 0x1FF;
@@ -426,7 +413,7 @@ void memory_page_add(page_table_t table, uint64_t virtual_addr, void *high_addr,
 	pt->entries[a].flags_and_address = flags | physical_addr;
 }
 
-void memory_allocate_range(page_table_t table, uint64_t base, uint8_t *data, uint64_t size, int user) {
+void memory_allocate_range(struct pml4 *table, uint64_t base, uint8_t *data, uint64_t size, int user) {
 	// base must be aligned to 4KiB page.
 
 	for (uint64_t page = 0; page < size; page += 4096) {

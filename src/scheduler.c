@@ -98,7 +98,7 @@ struct task *new_task(void) {
 	return tasks + idx;
 }
 
-void scheduler_init(page_table_t kernel_table) {
+void scheduler_init(struct pml4 *kernel_table) {
 	current_task = new_task();
 	*current_task = (struct task) {
 		.pages = kernel_table,

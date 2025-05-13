@@ -32,7 +32,7 @@ struct program_header {
 };
 
 // It would be fun to make this a part of userspace some time.
-int elf_loader_stage(page_table_t table, const char *path, uint64_t *rip) {
+int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip) {
 	struct inode *inode = vfs_resolve(NULL, path);
 
 	if (!inode)
