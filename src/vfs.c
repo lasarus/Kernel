@@ -1,40 +1,13 @@
 #include "vfs.h"
+#include "kmalloc.h"
 #include "memory.h"
 #include "vga_text.h"
 
-struct inode_list {
-	struct inode_list *next;
-	uint64_t n_entries;
-	struct inode inodes[4096 / sizeof(struct inode) - 1];
-};
-
-_Static_assert(sizeof(struct inode_list) <= 4096, "");
-
-static struct inode_list *head, *tail;
-
 struct inode *vfs_new_inode(void) {
-	// Don't allow freeing nodes for now.
-	if (!head) {
-		head = memory_alloc();
-
-		head->next = NULL;
-		head->n_entries = 0;
-
-		tail = head;
-	}
-
-	if (tail->n_entries >= COUNTOF(tail->inodes)) {
-		tail->next = memory_alloc();
-		tail = tail->next;
-
-		tail->next = NULL;
-		tail->n_entries = 0;
-	}
-
 	static uint32_t inode_counter = 0;
-	struct inode *ret = &tail->inodes[tail->n_entries++];
-	*ret = (struct inode) { .id = inode_counter++ };
-	return ret;
+	struct inode *inode = kmalloc(sizeof *inode);
+	*inode = (struct inode) { .id = inode_counter++ };
+	return inode;
 }
 
 static struct inode *fs_root;

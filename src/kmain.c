@@ -1,6 +1,7 @@
 #include "common.h"
 #include "interrupts.h"
 #include "keyboard.h"
+#include "kmalloc.h"
 #include "memory.h"
 #include "multiboot.h"
 #include "scheduler.h"
@@ -16,6 +17,7 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 
 	struct pml4 *kernel_table = memory_init(mb);
 	interrupts_init();
+	kmalloc_init();
 	syscall_init();
 	vfs_init();
 

@@ -27,11 +27,7 @@ struct inode {
 	};
 
 	void *data;
-
-	uint8_t padding[8];
 };
-
-_Static_assert(sizeof(struct inode) == 64, "");
 
 void vfs_init(void);
 

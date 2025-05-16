@@ -1,4 +1,5 @@
 #include "tmpfs.h"
+#include "kmalloc.h"
 #include "memory.h"
 #include "vga_text.h"
 
@@ -52,10 +53,7 @@ void tmpfs_init_dir(struct inode *inode) {
 struct file_header {
 	void *data;
 	uint64_t size;
-	// Seems like a bit of waste...
 };
-
-_Static_assert(sizeof(struct file_header) <= 4096, "");
 
 ssize_t tmpfs_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
 	struct file_header *header = inode->data;
@@ -84,7 +82,7 @@ ssize_t tmpfs_file_size(struct inode *inode) {
 }
 
 void tmpfs_init_file(struct inode *inode, void *data, size_t size) {
-	struct file_header *header = memory_alloc();
+	struct file_header *header = kmalloc(sizeof *header);
 
 	header->data = data;
 	header->size = size;
