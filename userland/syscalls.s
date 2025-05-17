@@ -41,8 +41,9 @@ exit:
 	retq
 
 	.global _start
-_start:	
-	movq $0x1337, %r15
+_start:
+	mov (%rsp), %rdi
+	lea 8(%rsp), %rsi
 	call main
 	movq %rax, %rdi
 	movq $0x3c, %rax

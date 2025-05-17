@@ -22,3 +22,12 @@ size_t strlen(const char *s) {
 		;
 	return s - start;
 }
+
+void *memcpy(void *dest, const void *src, size_t n) {
+	uint8_t *dest_8 = dest;
+	const uint8_t *src_8 = src;
+	for (size_t i = 0; i < n; i++) {
+		dest_8[i] = src_8[i];
+	}
+	return dest;
+}

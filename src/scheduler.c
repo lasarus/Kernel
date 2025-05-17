@@ -8,6 +8,8 @@
 #include "vga_text.h"
 
 #define MAX_TASKS 16
+#define MAX_ARGC 128
+#define MAX_ARGV_CONTENTS 2048
 
 int n_tasks = 0;
 struct task tasks[MAX_TASKS];
@@ -17,28 +19,77 @@ static int pid_counter = 0;
 
 void disasm(uint8_t *addr, int len);
 
-int scheduler_execve(const char *filename, const char *const *argv, const char *const *envp) {
-	size_t len = strlen(filename);
+void *push_to_stack(void **rsp, const void *src, size_t size) {
+	*(uint8_t **)rsp -= size;
+	*rsp = (void *)((uint64_t)*rsp & -16); // Align rsp to 16 byte boundary.
+	memcpy(*(uint8_t **)rsp, src, size);
+	return *rsp;
+}
 
+static size_t staged_argv_size = 0;
+static char staged_argv_buffer[MAX_ARGV_CONTENTS];
+static size_t staged_argc = 0;
+static size_t staged_argv[MAX_ARGC]; // Offsets into `staged_argv_buffer`.
+
+void stage_argv(const char *const *argv) {
+	staged_argc = 0;
+	staged_argv_size = 0;
+
+	if (!argv)
+		return;
+
+	for (; argv[staged_argc] && staged_argc < MAX_ARGC; staged_argc++) {
+		int i = 0;
+		staged_argv[staged_argc] = staged_argv_size;
+		for (; argv[staged_argc][i]; i++) {
+			staged_argv_buffer[staged_argv_size++] = argv[staged_argc][i];
+		}
+		staged_argv_buffer[staged_argv_size++] = '\0';
+	}
+}
+
+int scheduler_execve(const char *filename, const char *const *argv, const char *const *envp) {
 	uint64_t rip;
 	if (elf_loader_stage(current_task->pages, filename, &rip)) {
 		memory_page_table_delete_pdpt(current_task->pages, ELF_STAGE_INDEX);
 		return 1;
 	}
 
+	stage_argv(argv); // Needs to be done before destroying old pages.
+
 	// We are now commited to a new executable. The old one can be thrown away.
 	memory_page_table_delete(current_task->pages, 1);
 	memory_page_table_move_pdpt(current_task->pages, 0, ELF_STAGE_INDEX);
 
-	const uint64_t user_stack_size = 4 * KIBIBYTE;
+	const uint64_t user_stack_size = 4 * 4UL * KIBIBYTE;
 	const uint64_t user_stack_pos = GIBIBYTE;
 
 	// Set up user stack.
 	memory_allocate_range(current_task->pages, user_stack_pos, NULL, user_stack_size, 1);
 
-	// disasm((void *)rip, 16);
+	void *rsp = (void *)(user_stack_size + user_stack_pos);
 
-	usermode_jump(user_stack_size + user_stack_pos, rip, 0, 0, 0);
+	// Set up argc and argv.
+	struct stack {
+		uint64_t argc;
+		char *argv[MAX_ARGC];
+	} __attribute__((packed)) stack;
+
+	if (argv) {
+		void *staged_argv_buffer_offset = push_to_stack(&rsp, staged_argv_buffer, staged_argv_size);
+		for (unsigned i = 0; i < staged_argc; i++) {
+			stack.argv[i] = (char *)staged_argv_buffer_offset + staged_argv[i];
+		}
+
+		stack.argv[staged_argc] = NULL;
+	}
+
+	stack.argc = staged_argc;
+
+	push_to_stack(&rsp, &stack, sizeof(uint64_t) + (staged_argc + 1) * sizeof(char *));
+
+	// Jump to usermode. %rdi, %rsi, %rdx are not used.
+	usermode_jump((uint64_t)rsp, rip, 0, 0, 0);
 	return 0;
 }
 
