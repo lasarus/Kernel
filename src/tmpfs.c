@@ -39,6 +39,25 @@ struct inode *tmpfs_dir_find_child(struct inode *inode, const char *name, int le
 	return NULL;
 }
 
+int tmpfs_dir_iterate(struct inode *inode, size_t *offset, filldir_t filldir, void *context) {
+	struct dir_data *data = inode->data;
+	if (*offset == 0) {
+		filldir(context, ".", 1, 4);
+	} else if (*offset == 1) {
+		filldir(context, "..", 2, 4);
+	} else if (*offset < (size_t)data->n_entries + 2) {
+		struct file_entry *entry = &data->entries[*offset - 2];
+		size_t length = strlen(entry->name);
+		unsigned char type = entry->inode->type;
+		filldir(context, entry->name, length, type);
+	} else {
+		return 0;
+	}
+
+	(*offset)++;
+	return 1;
+}
+
 void tmpfs_init_dir(struct inode *inode) {
 	struct dir_data *data = memory_alloc();
 
@@ -48,6 +67,7 @@ void tmpfs_init_dir(struct inode *inode) {
 	inode->data = data;
 	inode->create_child = tmpfs_dir_create_child;
 	inode->find_child = tmpfs_dir_find_child;
+	inode->iterate = tmpfs_dir_iterate;
 }
 
 struct file_header {

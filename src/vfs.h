@@ -3,6 +3,10 @@
 
 #include "common.h"
 
+struct inode;
+
+typedef int (*filldir_t)(void *context, const char *name, size_t name_length, unsigned char type);
+
 struct inode {
 	enum {
 		INODE_FILE,
@@ -23,6 +27,7 @@ struct inode {
 		struct {
 			struct inode *(*create_child)(struct inode *inode, const char *name, int len);
 			struct inode *(*find_child)(struct inode *inode, const char *name, int len);
+			int (*iterate)(struct inode *inode, size_t *offset, filldir_t filldir, void *context);
 		};
 	};
 
@@ -83,5 +88,8 @@ enum {
 };
 
 size_t vfs_lseek(int fd, size_t offset, int whence);
+
+struct dirent;
+ssize_t vfs_fill_dirent(int fd, struct dirent *dirent);
 
 #endif

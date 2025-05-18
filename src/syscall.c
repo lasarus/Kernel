@@ -58,6 +58,16 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 		return scheduler_wait_for_pid((int)arg0, (int *)arg1);
 	} break;
 
+	case 217: {
+		struct fd_table *fd_table = scheduler_get_fd_table();
+		int file = fd_table_get_file(fd_table, arg0);
+
+		struct dirent *dirent = (void *)arg1;
+		size_t size = arg2;
+
+		return vfs_fill_dirent(file, dirent);
+	} break;
+
 	default: kprintf("Got unknown syscall: %d\n", (int)rax);
 	}
 

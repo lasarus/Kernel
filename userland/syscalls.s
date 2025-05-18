@@ -55,6 +55,13 @@ open:	#int open(const char *pathname, int flags);
 	syscall
 	retq
 
+	.global getdents64
+getdents64:	
+# ssize_t getdents64(int fd, void *dirp, size_t count);
+	movq $217, %rax
+	syscall
+	retq
+
 	.global close
 close:	#int close(int fd);
 	movq $3, %rax

@@ -20,6 +20,7 @@ void nanosleep(struct timespec *req, struct timespec *rem);
 void execve(const char *filename, const char *const *argv, const char *const *envp);
 int fork(void);
 void exit(int error_code);
+ssize_t getdents64(int fd, void *dirp, size_t count);
 int open(const char *pathname, int flags);
 int close(int fd);
 int wait4(int pid, int *wstatus, int options, struct rusage *rusage);

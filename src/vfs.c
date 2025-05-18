@@ -167,3 +167,42 @@ int fd_table_assign_open_file(struct fd_table *fd_table, int fd) {
 
 	return new_entry;
 }
+
+struct dirent {
+	unsigned long d_ino; // Not used
+	long d_off; // Not used
+	unsigned short d_reclen;
+	unsigned char d_type;
+	char d_name[];
+};
+
+struct vfs_filldir_context {
+	struct dirent *dirent;
+};
+
+int vfs_filldir(void *context, const char *name, size_t name_length, unsigned char type) {
+	struct dirent *dirent = context;
+
+	memcpy(dirent->d_name, name, name_length);
+	dirent->d_type = type;
+	dirent->d_name[name_length] = '\0';
+
+	return 0;
+}
+
+ssize_t vfs_fill_dirent(int fd, struct dirent *dirent) {
+	struct file_table_entry *entry = file_table.entries + fd;
+	struct inode *inode = entry->inode;
+
+	if (inode->type != INODE_DIRECTORY)
+		return -1;
+
+	int result = inode->iterate(inode, &entry->file_offset, vfs_filldir, dirent);
+
+	if (result == 0)
+		return 0;
+
+	dirent->d_reclen = sizeof(struct dirent) + strlen(dirent->d_name) + 1;
+
+	return dirent->d_reclen;
+}
