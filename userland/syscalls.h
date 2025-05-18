@@ -11,6 +11,8 @@ struct timespec {
 	long tv_nsec;
 };
 
+struct rusage; // Not implemented.
+
 typedef unsigned long size_t;
 ssize_t read(unsigned int fd, char *buf, size_t count);
 void write(unsigned int fd, const char *buf, size_t count);
@@ -20,5 +22,6 @@ int fork(void);
 void exit(int error_code);
 int open(const char *pathname, int flags);
 int close(int fd);
+int wait4(int pid, int *wstatus, int options, struct rusage *rusage);
 
 #endif

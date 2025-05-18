@@ -81,7 +81,17 @@ void execute(const char *command) {
 		printf("Could not execute: \"%s\"\n", path);
 		exit(1);
 	} else {
-		// TODO: wait for child process
+		int status;
+
+		int waited = wait4(pid, &status, 0, NULL);
+		if (waited == -1) {
+			printf("Could not wait\n");
+			exit(1);
+		}
+
+		if (status) {
+			printf("%d ", status);
+		}
 	}
 }
 

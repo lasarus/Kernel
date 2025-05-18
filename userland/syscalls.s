@@ -60,3 +60,9 @@ close:	#int close(int fd);
 	movq $3, %rax
 	syscall
 	retq
+
+	.global wait4
+wait4: #int wait4(int pid, int *wstatus, int options, struct rusage *rusage)
+	movq $61, %rax
+	syscall
+	retq

@@ -114,6 +114,8 @@ int get_next_task(void) {
 
 		case STATUS_RUNNING: resume = 1; break;
 
+		case STATUS_WAIT_FOR_PID: resume = 0; break;
+
 		default: break;
 		}
 
@@ -146,7 +148,7 @@ struct task *new_task(void) {
 		return task;
 	}
 
-	return tasks + idx;
+	return &tasks[idx];
 }
 
 void scheduler_init(struct pml4 *kernel_table) {
@@ -230,7 +232,7 @@ int task_is_alive(struct task *task) {
 static struct task *get_task_from_pid(int pid) {
 	for (int i = 0; i < n_tasks; i++) {
 		if (tasks[i].pid == pid && task_is_alive(tasks + i)) {
-			return tasks + i;
+			return &tasks[i];
 		}
 	}
 	return NULL;
@@ -252,5 +254,29 @@ void scheduler_exit(int error_code) {
 	(void)error_code;
 	current_task->status = STATUS_CLEANUP;
 
+	for (int i = 0; i < current_task->n_waiting; i++) {
+		struct task *task = get_task_from_pid(current_task->waiting[i]);
+		if (task->status != STATUS_WAIT_FOR_PID)
+			continue;
+		task->wait_status = error_code;
+		task->status = STATUS_RUNNING;
+	}
+
 	scheduler_update();
+}
+
+int scheduler_wait_for_pid(int pid, int *result) {
+	struct task *task = get_task_from_pid(pid);
+	if (!task)
+		return -1;
+
+	current_task->status = STATUS_WAIT_FOR_PID;
+
+	task->waiting[task->n_waiting++] = current_task->pid;
+
+	scheduler_update();
+
+	*result = current_task->wait_status;
+
+	return 0;
 }

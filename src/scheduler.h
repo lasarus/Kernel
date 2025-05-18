@@ -5,6 +5,8 @@
 #include "memory.h"
 #include "vfs.h"
 
+#define MAX_WAITING 8
+
 extern struct task *current_task;
 
 enum {
@@ -12,6 +14,7 @@ enum {
 	STATUS_CLOCK_SLEEP,
 	STATUS_UNLIMITED_SLEEP,
 	STATUS_CLEANUP,
+	STATUS_WAIT_FOR_PID,
 	STATUS_DEAD,
 };
 
@@ -22,6 +25,7 @@ struct task {
 	uint8_t is_usermode;
 
 	uint8_t status;
+	int wait_status;
 	uint64_t sleep_until;
 	// TODO: XMM0-15
 
@@ -29,6 +33,9 @@ struct task {
 	int parent;
 
 	struct fd_table *fd_table;
+
+	int n_waiting;
+	int waiting[MAX_WAITING];
 };
 
 struct task_wait {
@@ -50,6 +57,7 @@ void scheduler_suspend(void);
 void scheduler_sleep(uint64_t ticks);
 int scheduler_fork(void);
 void scheduler_exit(int error_code);
+int scheduler_wait_for_pid(int pid, int *result);
 
 struct fd_table *scheduler_get_fd_table(void);
 
