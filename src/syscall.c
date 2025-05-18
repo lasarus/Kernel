@@ -38,10 +38,7 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 		scheduler_exit(arg0);
 	} break;
 
-	default:
-		print("Got unknown syscall: ");
-		print_int(rax);
-		print("\n");
+	default: kprintf("Got unknown syscall: %d\n", (int)rax);
 	}
 
 	return 0;

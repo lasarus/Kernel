@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <stdarg.h>
+
 #define DISPLAY ((uint8_t *)(0xB8000 + HIGHER_HALF_OFFSET))
 static int x = 0, y = 0;
 
@@ -115,4 +117,25 @@ void print_hex(uint64_t num) {
 		print_char(buffer[idx]);
 	}
 	update_cursor();
+}
+
+void kprintf(const char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+
+	for (; *fmt; fmt++) {
+		if (*fmt == '%') {
+			switch (*++fmt) {
+			case 's': print(va_arg(args, const char *)); break;
+			case 'd': print_int(va_arg(args, int)); break;
+			case 'x': print_hex(va_arg(args, int)); break;
+			case 'c': print_char(va_arg(args, int)); break;
+			default: break;
+			}
+		} else {
+			print_char(*fmt);
+		}
+	}
+
+	va_end(args);
 }

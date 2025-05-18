@@ -9,6 +9,7 @@ void print_char_color(char c, unsigned char color);
 void print(const char *str);
 void print_int(int num);
 void print_hex(uint64_t num);
+__attribute__((format(printf, 1, 2))) void kprintf(const char *fmt, ...);
 
 enum {
 	VGA_BLACK = 0,

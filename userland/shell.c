@@ -1,21 +1,5 @@
+#include "stdio.h"
 #include "syscalls.h"
-
-int getchar() {
-	char c;
-	read(0, &c, 1);
-	return c;
-}
-
-int putchar(int c) {
-	char cc = c;
-	write(1, &cc, 1);
-	return cc;
-}
-
-void puts(const char *str) {
-	while (*str)
-		putchar(*str++);
-}
 
 void getsn(char *str, int n) {
 	while (n-- > 1) {
@@ -90,18 +74,18 @@ void execute(const char *command) {
 	argv[argv_counter++] = NULL;
 
 	int pid = fork();
-	if (pid) {
+	if (pid == -1) {
+		printf("Could not fork?\n");
+	} else if (pid == 0) {
 		execve(path, argv, NULL);
-		puts("Could not execute: \"");
-		puts(path);
-		puts("\"\n");
-
+		printf("Could not execute: \"%s\"\n", path);
 		exit(1);
+	} else {
+		// TODO: wait for child process
 	}
 }
 
 int main(int argc, char **argv) {
-
 	for (;;) {
 		write(1, "$ ", 2);
 		char buffer[256];
