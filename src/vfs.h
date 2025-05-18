@@ -50,6 +50,7 @@ struct fd_table *vfs_init_fd_table(void);
 struct fd_table *vfs_copy_fd_table(struct fd_table *src);
 int fd_table_get_file(struct fd_table *fd_table, int fd);
 void fd_table_set_standard_streams(struct fd_table *fd_table, int stdin, int stdout, int stderr);
+int fd_table_assign_open_file(struct fd_table *fd_table, int fd);
 
 enum {
 	O_RDONLY = 1 << 0,

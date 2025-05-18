@@ -48,3 +48,15 @@ _start:
 	movq %rax, %rdi
 	movq $0x3c, %rax
 	syscall
+
+	.global open
+open:	#int open(const char *pathname, int flags);
+	movq $2, %rax
+	syscall
+	retq
+
+	.global close
+close:	#int close(int fd);
+	movq $3, %rax
+	syscall
+	retq

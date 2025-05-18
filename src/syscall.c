@@ -1,5 +1,6 @@
 #include "common.h"
 #include "scheduler.h"
+#include "vfs.h"
 #include "vga_text.h"
 
 // I'm trying to emulate Linux syscalls a little bit.
@@ -10,14 +11,29 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 		struct fd_table *fd_table = scheduler_get_fd_table();
 		int file = fd_table_get_file(fd_table, arg0);
 
-		vfs_read_file(file, (void *)arg1, arg2);
+		return vfs_read_file(file, (void *)arg1, arg2);
 	} break;
 
 	case 1: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
 		int file = fd_table_get_file(fd_table, arg0);
 
-		vfs_write_file(file, (void *)arg1, arg2);
+		return vfs_write_file(file, (void *)arg1, arg2);
+	} break;
+
+	case 2: {
+		struct fd_table *fd_table = scheduler_get_fd_table();
+		int vfs_fd = vfs_open((const char *)arg0, arg1);
+		if (vfs_fd == -1)
+			return -1;
+		return fd_table_assign_open_file(fd_table, vfs_fd);
+	} break;
+
+	case 3: {
+		struct fd_table *fd_table = scheduler_get_fd_table();
+		int file = fd_table_get_file(fd_table, arg0);
+		vfs_close_file(file);
+		return 0;
 	} break;
 
 	case 35: {

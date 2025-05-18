@@ -151,3 +151,19 @@ int vfs_open(const char *filename, unsigned char access_mode) {
 void vfs_close_file(int file) {
 	file_table.entries[file].dead = 1;
 }
+
+int fd_table_assign_open_file(struct fd_table *fd_table, int fd) {
+	// Iterate through fd_table and find something open.
+	for (int i = 0; i < fd_table->n_entries; i++) {
+		if (fd_table->entries[i].index == -1) {
+			fd_table->entries[i].index = fd;
+			return i;
+		}
+	}
+
+	int new_entry = fd_table->n_entries++;
+	fd_table->entries[new_entry].index = fd;
+	fd_table->entries[new_entry].close_on_exec = 0;
+
+	return new_entry;
+}

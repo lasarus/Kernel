@@ -1,11 +1,11 @@
-USERLAND := hello.elf shell.elf echo.elf
+USERLAND := hello.elf shell.elf echo.elf cat.elf
 
 .PHONY: all clean run
 
 all: kernel.bin $(USERLAND)
 
-run: kernel.bin $(USERLAND)
-	qemu-system-x86_64 --kernel kernel.bin -initrd shell.elf,hello.elf,echo.elf -no-reboot -no-shutdown
+run: kernel.bin $(USERLAND) README.md
+	qemu-system-x86_64 --kernel kernel.bin -initrd shell.elf,hello.elf,echo.elf,cat.elf,README.md -no-reboot -no-shutdown
 
 clean:
 	rm -rf kernel.bin
@@ -25,6 +25,8 @@ echo.elf: userland/echo.c userland/syscalls.s userland/stdio.c
 shell.elf: userland/shell.c userland/syscalls.s userland/stdio.c
 	gcc -T userland/userland_elf.ld $^ -o $@ -no-pie -ffreestanding -nostdlib -mgeneral-regs-only -fno-stack-protector
 
+cat.elf: userland/cat.c userland/syscalls.s userland/stdio.c
+	gcc -T userland/userland_elf.ld $^ -o $@ -no-pie -ffreestanding -nostdlib -mgeneral-regs-only -fno-stack-protector
 
 reformat:
 	clang-format -i src/*.[ch]
