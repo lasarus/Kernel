@@ -11,13 +11,10 @@ struct inode *vfs_new_inode(void) {
 }
 
 static struct inode *fs_root;
-static struct file_table file_table;
 
 void vfs_init(void) {
 	fs_root = vfs_new_inode();
 	fs_root->type = INODE_DIRECTORY;
-
-	file_table.n_entries = 0;
 }
 
 struct inode *vfs_resolve(struct inode *root, const char *path) {
@@ -66,103 +63,86 @@ struct fd_table *vfs_copy_fd_table(struct fd_table *src) {
 	struct fd_table *table = memory_alloc();
 
 	table->n_entries = src->n_entries;
-	for (int i = 0; i < table->n_entries; i++)
+	for (int i = 0; i < table->n_entries; i++) {
 		table->entries[i] = src->entries[i];
+		if (table->entries[i].file)
+			table->entries[i].file->ref_count++;
+	}
 
 	return table;
 }
 
-int fd_table_get_file(struct fd_table *fd_table, int fd) {
+struct file *fd_table_get_file(struct fd_table *fd_table, int fd) {
 	if (fd > fd_table->n_entries) {
 		print("Error: invalid fd: ");
 		print_int(fd);
 		print("\n");
+		return NULL;
 	}
-	return fd_table->entries[fd].index;
+	return fd_table->entries[fd].file;
 }
 
-void fd_table_set_standard_streams(struct fd_table *fd_table, int stdin, int stdout, int stderr) {
+void fd_table_set_standard_streams(struct fd_table *fd_table, struct file *stdin, struct file *stdout,
+                                   struct file *stderr) {
 	if (fd_table->n_entries < 3)
 		fd_table->n_entries = 3;
-	fd_table->entries[0].index = stdin;
-	fd_table->entries[1].index = stdout;
-	fd_table->entries[2].index = stderr;
+	fd_table->entries[0].file = stdin;
+	fd_table->entries[1].file = stdout;
+	fd_table->entries[2].file = stderr;
 }
 
-ssize_t vfs_read_file(int fd, void *data, size_t count) {
-	if (fd == -1)
-		ERROR("Invalid file handle\n");
-	struct file_table_entry *entry = &file_table.entries[fd];
-	struct inode *inode = entry->inode;
-
-	return inode->read(inode, &entry->file_offset, data, count);
+ssize_t vfs_read_file(struct file *file, void *data, size_t count) {
+	return file->inode->read(file->inode, &file->file_offset, data, count);
 }
 
-ssize_t vfs_write_file(int fd, const void *data, size_t count) {
-	struct file_table_entry *entry = file_table.entries + fd;
-	struct inode *inode = entry->inode;
-
-	return inode->write(inode, &entry->file_offset, data, count);
+ssize_t vfs_write_file(struct file *file, const void *data, size_t count) {
+	return file->inode->write(file->inode, &file->file_offset, data, count);
 }
 
-size_t vfs_lseek(int fd, size_t offset, int whence) {
-	struct file_table_entry *entry = file_table.entries + fd;
-	struct inode *inode = entry->inode;
-
-	size_t size = inode->size(inode);
+size_t vfs_lseek(struct file *file, size_t offset, int whence) {
+	size_t size = file->inode->size(file->inode);
 
 	switch (whence) {
 	case SEEK_SET:
 		if (offset > size)
 			offset = size;
-		return entry->file_offset = offset;
+		return file->file_offset = offset;
 
 	default: ERROR("Not implemented\n");
 	}
 	return 0;
 }
 
-int vfs_open_inode(struct inode *inode, unsigned char access_mode) {
-	int new_idx = -1;
-	for (int i = 0; i < file_table.n_entries; i++) {
-		if (file_table.entries[i].dead) {
-			new_idx = i;
-			break;
-		}
-	}
-
-	if (new_idx == -1)
-		new_idx = file_table.n_entries++;
-
-	struct file_table_entry *entry = file_table.entries + new_idx;
-
-	*entry = (struct file_table_entry) { .inode = inode, .access_mode = access_mode };
-
-	return new_idx;
+struct file *vfs_open_inode(struct inode *inode, unsigned char access_mode) {
+	struct file *file = kmalloc(sizeof *file);
+	*file = (struct file) { .ref_count = 1, .inode = inode, .access_mode = access_mode };
+	return file;
 }
 
-int vfs_open(const char *filename, unsigned char access_mode) {
+struct file *vfs_open(const char *filename, unsigned char access_mode) {
 	struct inode *inode = vfs_resolve(NULL, filename);
 	if (!inode)
-		return -1;
+		return NULL;
 	return vfs_open_inode(inode, access_mode);
 }
 
-void vfs_close_file(int file) {
-	file_table.entries[file].dead = 1;
+void vfs_close_file(struct file *file) {
+	file->ref_count--;
+	if (file->ref_count <= 0)
+		kfree(file);
 }
 
-int fd_table_assign_open_file(struct fd_table *fd_table, int fd) {
+int fd_table_assign_open_file(struct fd_table *fd_table, struct file *file) {
 	// Iterate through fd_table and find something open.
 	for (int i = 0; i < fd_table->n_entries; i++) {
-		if (fd_table->entries[i].index == -1) {
-			fd_table->entries[i].index = fd;
+		if (!fd_table->entries[i].file) {
+			fd_table->entries[i].file = file;
 			return i;
 		}
 	}
 
 	int new_entry = fd_table->n_entries++;
-	fd_table->entries[new_entry].index = fd;
+	fd_table->entries[new_entry].file = file;
 	fd_table->entries[new_entry].close_on_exec = 0;
 
 	return new_entry;
@@ -190,14 +170,11 @@ int vfs_filldir(void *context, const char *name, size_t name_length, unsigned ch
 	return 0;
 }
 
-ssize_t vfs_fill_dirent(int fd, struct dirent *dirent) {
-	struct file_table_entry *entry = file_table.entries + fd;
-	struct inode *inode = entry->inode;
-
-	if (inode->type != INODE_DIRECTORY)
+ssize_t vfs_fill_dirent(struct file *file, struct dirent *dirent) {
+	if (file->inode->type != INODE_DIRECTORY)
 		return -1;
 
-	int result = inode->iterate(inode, &entry->file_offset, vfs_filldir, dirent);
+	int result = file->inode->iterate(file->inode, &file->file_offset, vfs_filldir, dirent);
 
 	if (result == 0)
 		return 0;

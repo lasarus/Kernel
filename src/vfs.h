@@ -34,6 +34,15 @@ struct inode {
 	void *data;
 };
 
+struct file {
+	int ref_count;
+	size_t file_offset;
+	size_t status_flags;
+	unsigned char access_mode; // Should be read/write/read-write.
+	unsigned char dead; // Should be read/write/read-write.
+	struct inode *inode;
+};
+
 void vfs_init(void);
 
 struct inode *vfs_new_inode(void);
@@ -45,7 +54,7 @@ struct fd_table { // File descriptor table
 	int n_entries;
 	struct fd_table_entry {
 		unsigned char close_on_exec; // Currently unused.
-		int index;
+		struct file *file;
 	} entries[4088 / sizeof(struct fd_table_entry)];
 };
 
@@ -53,9 +62,10 @@ _Static_assert(sizeof(struct fd_table) <= 4096, "");
 
 struct fd_table *vfs_init_fd_table(void);
 struct fd_table *vfs_copy_fd_table(struct fd_table *src);
-int fd_table_get_file(struct fd_table *fd_table, int fd);
-void fd_table_set_standard_streams(struct fd_table *fd_table, int stdin, int stdout, int stderr);
-int fd_table_assign_open_file(struct fd_table *fd_table, int fd);
+struct file *fd_table_get_file(struct fd_table *fd_table, int fd);
+void fd_table_set_standard_streams(struct fd_table *fd_table, struct file *stdin, struct file *stdout,
+                                   struct file *stderr);
+int fd_table_assign_open_file(struct fd_table *fd_table, struct file *file);
 
 enum {
 	O_RDONLY = 1 << 0,
@@ -63,23 +73,12 @@ enum {
 	O_RDWR = O_RDONLY | O_WRONLY,
 };
 
-struct file_table {
-	int n_entries;
-	struct file_table_entry {
-		size_t file_offset;
-		size_t status_flags;
-		unsigned char access_mode; // Should be read/write/read-write.
-		unsigned char dead; // Should be read/write/read-write.
-		struct inode *inode;
-	} entries[1000];
-};
+ssize_t vfs_read_file(struct file *file, void *data, size_t count);
+ssize_t vfs_write_file(struct file *file, const void *data, size_t count);
 
-ssize_t vfs_read_file(int fd, void *data, size_t count);
-ssize_t vfs_write_file(int fd, const void *data, size_t count);
-
-int vfs_open_inode(struct inode *inode, unsigned char access_mode);
-int vfs_open(const char *filename, unsigned char access_mode);
-void vfs_close_file(int file);
+struct file *vfs_open_inode(struct inode *inode, unsigned char access_mode);
+struct file *vfs_open(const char *filename, unsigned char access_mode);
+void vfs_close_file(struct file *file);
 
 enum {
 	SEEK_SET,
@@ -87,9 +86,9 @@ enum {
 	SEEK_END,
 };
 
-size_t vfs_lseek(int fd, size_t offset, int whence);
+size_t vfs_lseek(struct file *file, size_t offset, int whence);
 
 struct dirent;
-ssize_t vfs_fill_dirent(int fd, struct dirent *dirent);
+ssize_t vfs_fill_dirent(struct file *file, struct dirent *dirent);
 
 #endif

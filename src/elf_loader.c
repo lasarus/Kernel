@@ -41,16 +41,14 @@ int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip) {
 	if (inode->type != INODE_FILE)
 		return 1;
 
-	int fd = vfs_open_inode(inode, O_RDONLY);
-	// int fd = vfs_open(path, O_RDONLY);
-
-	if (fd == -1)
+	struct file *file = vfs_open_inode(inode, O_RDONLY);
+	if (!file)
 		return 1;
 
 	// Read elf header
 	struct header header;
 
-	vfs_read_file(fd, &header, sizeof header);
+	vfs_read_file(file, &header, sizeof header);
 
 	if (!(header.e_ident[0] == 0x7f && header.e_ident[1] == 'E' && header.e_ident[2] == 'L' &&
 	      header.e_ident[3] == 'F')) {
@@ -67,8 +65,8 @@ int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip) {
 	for (size_t i = 0; i < header.e_phnum; i++) {
 		struct program_header ph;
 
-		vfs_lseek(fd, header.e_phoff + i * header.e_phentsize, SEEK_SET);
-		vfs_read_file(fd, &ph, header.e_phentsize);
+		vfs_lseek(file, header.e_phoff + i * header.e_phentsize, SEEK_SET);
+		vfs_read_file(file, &ph, header.e_phentsize);
 
 		if (ph.p_type == 0 || ph.p_type > 16) {
 		} else if (ph.p_type == 1) { // LOAD
@@ -77,9 +75,9 @@ int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip) {
 				hang_kernel();
 			}
 
-			vfs_lseek(fd, ph.p_offset, SEEK_SET);
+			vfs_lseek(file, ph.p_offset, SEEK_SET);
 			memory_allocate_range(table, ph.p_vaddr + ELF_STAGE_OFFSET, NULL, ph.p_memsz, 1);
-			vfs_read_file(fd, (void *)(ph.p_vaddr + ELF_STAGE_OFFSET), ph.p_filesz);
+			vfs_read_file(file, (void *)(ph.p_vaddr + ELF_STAGE_OFFSET), ph.p_filesz);
 		} else {
 			print("Invalid program header type!\n");
 			print_hex(ph.p_type);
@@ -88,7 +86,7 @@ int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip) {
 		}
 	}
 
-	vfs_close_file(fd);
+	vfs_close_file(file);
 
 	return 0;
 }

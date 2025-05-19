@@ -9,29 +9,29 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 	switch (rax) {
 	case 0: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
-		int file = fd_table_get_file(fd_table, arg0);
+		struct file *file = fd_table_get_file(fd_table, arg0);
 
 		return vfs_read_file(file, (void *)arg1, arg2);
 	} break;
 
 	case 1: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
-		int file = fd_table_get_file(fd_table, arg0);
+		struct file *file = fd_table_get_file(fd_table, arg0);
 
 		return vfs_write_file(file, (void *)arg1, arg2);
 	} break;
 
 	case 2: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
-		int vfs_fd = vfs_open((const char *)arg0, arg1);
-		if (vfs_fd == -1)
+		struct file *file = vfs_open((const char *)arg0, arg1);
+		if (!file)
 			return -1;
-		return fd_table_assign_open_file(fd_table, vfs_fd);
+		return fd_table_assign_open_file(fd_table, file);
 	} break;
 
 	case 3: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
-		int file = fd_table_get_file(fd_table, arg0);
+		struct file *file = fd_table_get_file(fd_table, arg0);
 		vfs_close_file(file);
 		return 0;
 	} break;
@@ -60,7 +60,7 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 
 	case 217: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
-		int file = fd_table_get_file(fd_table, arg0);
+		struct file *file = fd_table_get_file(fd_table, arg0);
 
 		struct dirent *dirent = (void *)arg1;
 		size_t size = arg2;

@@ -51,8 +51,8 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	int init_pid = scheduler_fork();
 	if (init_pid == 0) {
 		/* We are in the init process now. */
-		int stdin = vfs_open("/keyboard", O_RDONLY), stdout = vfs_open("/terminal", O_WRONLY),
-			stderr = vfs_open("/terminal_error", O_WRONLY);
+		struct file *stdin = vfs_open("/keyboard", O_RDONLY), *stdout = vfs_open("/terminal", O_WRONLY),
+					*stderr = vfs_open("/terminal_error", O_WRONLY);
 
 		fd_table_set_standard_streams(current_task->fd_table, stdin, stdout, stderr);
 
