@@ -1,81 +1,59 @@
 #include "tmpfs.h"
 #include "kmalloc.h"
 #include "memory.h"
+#include "vfs.h"
 #include "vga_text.h"
 
-struct file_entry {
-	char name[256];
+struct dir_entry {
+	char name[FILENAME_MAX];
 	struct inode *inode;
 };
 
-#define N_DIR_ENTRIES (4096 / sizeof(struct file_entry))
+#define N_DIR_ENTRIES (4096 / sizeof(struct dir_entry))
 
-struct dir_data {
+struct dir_header {
 	int n_entries;
-	struct file_entry entries[N_DIR_ENTRIES];
+	struct dir_entry entries[N_DIR_ENTRIES];
 };
-
-_Static_assert(N_DIR_ENTRIES > 14, "");
-
-_Static_assert(sizeof(struct dir_data) <= 4096, "");
-
-struct inode *tmpfs_dir_create_child(struct inode *inode, const char *name, int len) {
-	struct dir_data *data = inode->data;
-	struct file_entry *entry = &data->entries[data->n_entries++];
-	for (int i = 0; i < len; i++)
-		entry->name[i] = name[i];
-	entry->name[len] = '\0';
-	entry->inode = vfs_new_inode();
-	return entry->inode;
-}
-
-struct inode *tmpfs_dir_find_child(struct inode *inode, const char *name, int len) {
-	struct dir_data *data = inode->data;
-	for (int i = 0; i < data->n_entries; i++) {
-		if (strncmp(data->entries[i].name, name, len) == 0 && data->entries[i].name[len] == '\0') {
-			return data->entries[i].inode;
-		}
-	}
-	return NULL;
-}
-
-int tmpfs_dir_iterate(struct inode *inode, size_t *offset, filldir_t filldir, void *context) {
-	struct dir_data *data = inode->data;
-	if (*offset == 0) {
-		filldir(context, ".", 1, 4);
-	} else if (*offset == 1) {
-		filldir(context, "..", 2, 4);
-	} else if (*offset < (size_t)data->n_entries + 2) {
-		struct file_entry *entry = &data->entries[*offset - 2];
-		size_t length = strlen(entry->name);
-		unsigned char type = entry->inode->type;
-		filldir(context, entry->name, length, type);
-	} else {
-		return 0;
-	}
-
-	(*offset)++;
-	return 1;
-}
-
-void tmpfs_init_dir(struct inode *inode) {
-	struct dir_data *data = memory_alloc();
-
-	data->n_entries = 0;
-
-	inode->type = INODE_DIRECTORY;
-	inode->data = data;
-	inode->create_child = tmpfs_dir_create_child;
-	inode->find_child = tmpfs_dir_find_child;
-	inode->iterate = tmpfs_dir_iterate;
-}
 
 struct file_header {
 	void *data;
 	uint64_t size;
 };
 
-ssize_t tmpfs_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
+static ssize_t tmpfs_read(struct inode *inode, size_t *offset, void *data, size_t count);
+static ssize_t tmpfs_write(struct inode *inode, size_t *offset, const void *data, size_t count);
+static ssize_t tmpfs_size(struct inode *inode);
+
+static struct inode *tmpfs_lookup(struct inode *dir, const char *name);
+static int tmpfs_iterate(struct inode *dir, size_t *offset, filldir_t filldir, void *context);
+static int tmpfs_create(struct inode *dir, const char *name);
+static int tmpfs_mkdir(struct inode *dir, const char *name);
+static int tmpfs_mknod(struct inode *dir, const char *name, enum inode_type type, int major, int minor);
+
+static struct inode_operations operations = {
+	.read = tmpfs_read,
+	.write = tmpfs_write,
+	.size = tmpfs_size,
+	.lookup = tmpfs_lookup,
+	.iterate = tmpfs_iterate,
+	.create = tmpfs_create,
+	.mkdir = tmpfs_mkdir,
+	.mknod = tmpfs_mknod,
+};
+
+_Static_assert(N_DIR_ENTRIES > 14, "");
+_Static_assert(sizeof(struct dir_header) <= 4096, "");
+
+static struct inode *new_inode(struct inode *dir, const char *name) {
+	struct dir_header *data = dir->data;
+	struct dir_entry *entry = &data->entries[data->n_entries++];
+	strcpy(entry->name, name);
+	entry->inode = vfs_new_inode();
+	return entry->inode;
+}
+
+static ssize_t tmpfs_read(struct inode *inode, size_t *offset, void *data, size_t count) {
 	struct file_header *header = inode->data;
 	uint8_t *user_data = data, *file_data = (uint8_t *)header->data + *offset;
 
@@ -87,29 +65,114 @@ ssize_t tmpfs_file_read(struct inode *inode, size_t *offset, void *data, size_t 
 
 	*offset += count;
 
-	return count;
+	return (ssize_t)count;
 }
 
-ssize_t tmpfs_file_write(struct inode *inode, size_t *offset, const void *data, size_t count) {
-	ERROR("Read only");
+static ssize_t tmpfs_write(struct inode *inode, size_t *offset, const void *data, size_t count) {
+	if (inode->type != INODE_FILE)
+		return 0;
+	struct file_header *header = inode->data;
+	if (header->size != 0)
+		return 0;
+	header->data = (void *)data; // TODO: THIS IS BAD.
+	header->size = count;
+	return (ssize_t)count;
+}
+
+static ssize_t tmpfs_size(struct inode *inode) {
+	if (inode->type != INODE_FILE)
+		return 0;
+	struct file_header *header = inode->data;
+	return (ssize_t)header->size;
+}
+
+static struct inode *tmpfs_lookup(struct inode *dir, const char *name) {
+	if (dir->type != INODE_DIRECTORY)
+		return NULL;
+	struct dir_header *data = dir->data;
+	for (int i = 0; i < data->n_entries; i++) {
+		if (strcmp(data->entries[i].name, name) == 0)
+			return data->entries[i].inode;
+	}
+	return NULL;
+}
+
+static int tmpfs_iterate(struct inode *dir, size_t *offset, filldir_t filldir, void *context) {
+	if (dir->type != INODE_DIRECTORY)
+		return 1;
+	struct dir_header *data = dir->data;
+	if (*offset == 0) {
+		filldir(context, ".", 1, 4);
+	} else if (*offset == 1) {
+		filldir(context, "..", 2, 4);
+	} else if (*offset < (size_t)data->n_entries + 2) {
+		struct dir_entry *entry = &data->entries[*offset - 2];
+		size_t length = strlen(entry->name);
+		unsigned char type = entry->inode->type;
+		filldir(context, entry->name, length, type);
+	} else {
+		return 0;
+	}
+
+	(*offset)++;
+	return 1;
+}
+
+static int tmpfs_create(struct inode *dir, const char *name) {
+	if (dir->type != INODE_DIRECTORY)
+		return 1;
+	struct inode *inode = new_inode(dir, name);
+	if (!inode)
+		return 1;
+
+	inode->type = INODE_FILE;
+	inode->operations = &operations;
+	struct file_header *header = kmalloc(sizeof *header);
+	*header = (struct file_header) {
+		.data = NULL,
+		.size = 0,
+	};
+	inode->data = header;
+
 	return 0;
 }
 
-ssize_t tmpfs_file_size(struct inode *inode) {
-	struct file_header *header = inode->data;
+static int tmpfs_mkdir(struct inode *dir, const char *name) {
+	if (dir->type != INODE_DIRECTORY)
+		return 1;
+	struct inode *inode = new_inode(dir, name);
+	if (!inode)
+		return 1;
 
-	return header->size;
+	inode->type = INODE_DIRECTORY;
+	inode->operations = &operations;
+	struct dir_header *header = memory_alloc();
+	*header = (struct dir_header) {
+		.n_entries = 0,
+	};
+	inode->data = header;
+
+	return 0;
 }
 
-void tmpfs_init_file(struct inode *inode, void *data, size_t size) {
-	struct file_header *header = kmalloc(sizeof *header);
+static int tmpfs_mknod(struct inode *dir, const char *name, enum inode_type type, int major, int minor) {
+	if (dir->type != INODE_DIRECTORY)
+		return 1;
+	struct inode *inode = new_inode(dir, name);
+	if (!inode)
+		return 1;
 
-	header->data = data;
-	header->size = size;
+	vfs_mknod_helper(inode, type, major, minor);
 
-	inode->type = INODE_FILE;
-	inode->data = header;
-	inode->read = tmpfs_file_read;
-	inode->write = tmpfs_file_write;
-	inode->size = tmpfs_file_size;
+	return 0;
+}
+
+void tmpfs_init(struct inode *root) {
+	root->type = INODE_DIRECTORY;
+	root->operations = &operations;
+	struct dir_header *header = memory_alloc();
+	*header = (struct dir_header) {
+		.n_entries = 0,
+	};
+	root->data = header;
 }

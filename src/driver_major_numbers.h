@@ -1,0 +1,9 @@
+#ifndef DRIVER_MAJOR_NUMBERS_H
+#define DRIVER_MAJOR_NUMBERS_H
+
+enum {
+	MAJOR_KEYBOARD = 1,
+	MAJOR_TERMINAL = 2,
+};
+
+#endif

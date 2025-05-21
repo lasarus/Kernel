@@ -1,5 +1,7 @@
 #include "keyboard.h"
+#include "driver_major_numbers.h"
 #include "scheduler.h"
+#include "vfs.h"
 #include "vga_text.h"
 
 #define BUFFER_SIZE 1024
@@ -227,9 +229,11 @@ static ssize_t keyboard_file_write(struct inode *inode, size_t *offset, const vo
 	return 0;
 }
 
-void keyboard_init_inode(struct inode *inode) {
-	inode->type = INODE_FILE;
-	inode->data = NULL;
-	inode->read = keyboard_file_read;
-	inode->write = keyboard_file_write;
+static struct inode_operations operations = {
+	.read = keyboard_file_read,
+	.write = keyboard_file_write,
+};
+
+void keyboard_init(void) {
+	vfs_register_driver(MAJOR_KEYBOARD, &operations);
 }

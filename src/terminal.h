@@ -1,9 +1,9 @@
 #ifndef TERMINAL_H
 #define TERMINAL_H
 
-#include "vfs.h"
+#define TERMINAL_MINOR_WHITE 0
+#define TERMINAL_MINOR_RED 1
 
-void terminal_init_inode(struct inode *inode);
-void terminal_red_init_inode(struct inode *inode);
+void terminal_init(void);
 
 #endif

@@ -27,37 +27,6 @@ void clear_screen(void) {
 }
 
 void print_char_color(char c, unsigned char color) {
-	if (c == '\n') {
-		x = 0;
-		y++;
-	} else {
-		DISPLAY[(y * 80 + x) * 2 + 0] = c;
-		DISPLAY[(y * 80 + x) * 2 + 1] = color;
-		x++;
-		if (x >= 80) {
-			x = 0;
-			y++;
-		}
-	}
-
-	if (y >= 24) {
-		// Move everything up one step.
-		for (int i = 0; i < 25; i++) {
-			for (int j = 0; j < 80; j++) {
-				if (i == 24) {
-					DISPLAY[(i * 80 + j) * 2 + 0] = ' ';
-					DISPLAY[(i * 80 + j) * 2 + 1] = 0x0f;
-				} else {
-					DISPLAY[(i * 80 + j) * 2 + 0] = DISPLAY[((i + 1) * 80 + j) * 2 + 0];
-					DISPLAY[(i * 80 + j) * 2 + 1] = DISPLAY[((i + 1) * 80 + j) * 2 + 1];
-				}
-			}
-		}
-		y--;
-	}
-}
-
-void print_char(char c) {
 	if (c == '\b') {
 		if (x == 0) {
 			if (y > 0)
@@ -68,10 +37,41 @@ void print_char(char c) {
 		DISPLAY[(y * 80 + x) * 2 + 0] = ' ';
 		DISPLAY[(y * 80 + x) * 2 + 1] = 0x0f;
 	} else {
-		print_char_color(c, 0x0f);
+		if (c == '\n') {
+			x = 0;
+			y++;
+		} else {
+			DISPLAY[(y * 80 + x) * 2 + 0] = c;
+			DISPLAY[(y * 80 + x) * 2 + 1] = color;
+			x++;
+			if (x >= 80) {
+				x = 0;
+				y++;
+			}
+		}
+
+		if (y >= 24) {
+			// Move everything up one step.
+			for (int i = 0; i < 25; i++) {
+				for (int j = 0; j < 80; j++) {
+					if (i == 24) {
+						DISPLAY[(i * 80 + j) * 2 + 0] = ' ';
+						DISPLAY[(i * 80 + j) * 2 + 1] = 0x0f;
+					} else {
+						DISPLAY[(i * 80 + j) * 2 + 0] = DISPLAY[((i + 1) * 80 + j) * 2 + 0];
+						DISPLAY[(i * 80 + j) * 2 + 1] = DISPLAY[((i + 1) * 80 + j) * 2 + 1];
+					}
+				}
+			}
+			y--;
+		}
 	}
 
 	update_cursor();
+}
+
+void print_char(char c) {
+	print_char_color(c, 0x0f);
 }
 
 void print(const char *str) {

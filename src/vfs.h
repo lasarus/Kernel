@@ -3,35 +3,37 @@
 
 #include "common.h"
 
+#define PATH_MAX 1024
+#define FILENAME_MAX 256
+#define MAX_DRIVERS 256
+
 struct inode;
 
 typedef int (*filldir_t)(void *context, const char *name, size_t name_length, unsigned char type);
 
+enum inode_type {
+	INODE_FILE,
+	INODE_DIRECTORY,
+	INODE_CHAR_DEVICE,
+};
+
+struct inode_operations {
+	ssize_t (*read)(struct inode *inode, size_t *offset, void *data, size_t count);
+	ssize_t (*write)(struct inode *inode, size_t *offset, const void *data, size_t count);
+	ssize_t (*size)(struct inode *inode);
+
+	struct inode *(*lookup)(struct inode *dir, const char *name);
+	int (*iterate)(struct inode *dir, size_t *offset, filldir_t filldir, void *context);
+	int (*create)(struct inode *dir, const char *name);
+	int (*mkdir)(struct inode *dir, const char *name);
+	int (*mknod)(struct inode *dir, const char *name, enum inode_type type, int major, int minor);
+};
+
 struct inode {
-	enum {
-		INODE_FILE,
-		INODE_DIRECTORY,
-		INODE_CHAR_DEVICE,
-	} type;
-
-	uint32_t id;
-
-	union {
-		struct {
-			ssize_t (*read)(struct inode *inode, size_t *offset, void *data, size_t count);
-			ssize_t (*write)(struct inode *inode, size_t *offset, const void *data, size_t count);
-			void (*open)(struct inode *inode, int file);
-			void (*close)(struct inode *inode, int file);
-			ssize_t (*size)(struct inode *inode);
-		};
-		struct {
-			struct inode *(*create_child)(struct inode *inode, const char *name, int len);
-			struct inode *(*find_child)(struct inode *inode, const char *name, int len);
-			int (*iterate)(struct inode *inode, size_t *offset, filldir_t filldir, void *context);
-		};
-	};
-
+	enum inode_type type;
+	struct inode_operations *operations;
 	void *data;
+	int major, minor;
 };
 
 struct file {
@@ -70,6 +72,7 @@ int fd_table_assign_open_file(struct fd_table *fd_table, struct file *file);
 enum {
 	O_RDONLY = 1 << 0,
 	O_WRONLY = 1 << 1,
+	O_CREAT = 1 << 2,
 	O_RDWR = O_RDONLY | O_WRONLY,
 };
 
@@ -90,5 +93,8 @@ size_t vfs_lseek(struct file *file, size_t offset, int whence);
 
 struct dirent;
 ssize_t vfs_fill_dirent(struct file *file, struct dirent *dirent);
+
+void vfs_register_driver(int major, struct inode_operations *operations);
+void vfs_mknod_helper(struct inode *inode, enum inode_type type, int major, int minor);
 
 #endif

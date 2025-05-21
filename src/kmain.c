@@ -1,4 +1,5 @@
 #include "common.h"
+#include "driver_major_numbers.h"
 #include "interrupts.h"
 #include "keyboard.h"
 #include "kmalloc.h"
@@ -20,30 +21,27 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	kmalloc_init();
 	syscall_init();
 	vfs_init();
+	keyboard_init();
+	terminal_init();
 
 	struct inode *root = vfs_resolve(NULL, "/");
-	tmpfs_init_dir(root);
+	tmpfs_init(root);
 
-	struct inode *terminal = root->create_child(root, "terminal", 8);
-	terminal_init_inode(terminal);
+	root->operations->mknod(root, "terminal", INODE_CHAR_DEVICE, MAJOR_TERMINAL, TERMINAL_MINOR_WHITE);
+	root->operations->mknod(root, "terminal_error", INODE_CHAR_DEVICE, MAJOR_TERMINAL, TERMINAL_MINOR_RED);
+	root->operations->mknod(root, "keyboard", INODE_CHAR_DEVICE, MAJOR_KEYBOARD, 0);
 
-	struct inode *error = root->create_child(root, "terminal_error", 14);
-	terminal_red_init_inode(error);
-
-	struct inode *keyboard = root->create_child(root, "keyboard", 8);
-	keyboard_init_inode(keyboard);
-
-	struct inode *bin = root->create_child(root, "bin", 3);
-	tmpfs_init_dir(bin);
+	root->operations->mkdir(root, "bin");
+	root->operations->mkdir(root, "home");
 
 	struct multiboot_module *modules = (void *)((uint64_t)mb->mods_addr + HIGHER_HALF_OFFSET);
 
-	static const char *names[] = { "init", "hello", "echo", "cat", "ls", "README.md" };
+	static const char *names[] = { "/bin/init", "/bin/hello", "/bin/echo", "/bin/cat", "/bin/ls", "/home/README.md" };
 	for (unsigned i = 0; i < mb->mods_count; i++) {
 		uint8_t *data = (uint8_t *)(modules[i].mod_start + HIGHER_HALF_OFFSET);
-
-		struct inode *file = bin->create_child(bin, names[i], strlen(names[i]));
-		tmpfs_init_file(file, data, modules[i].mod_end - modules[i].mod_start);
+		struct file *file = vfs_open(names[i], O_WRONLY | O_CREAT);
+		vfs_write_file(file, data, modules[i].mod_end - modules[i].mod_start);
+		vfs_close_file(file);
 	}
 
 	scheduler_init(kernel_table);

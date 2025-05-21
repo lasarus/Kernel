@@ -7,13 +7,14 @@ uint64_t round_up_4096(uint64_t val) {
 	return val;
 }
 
-int strncmp(const char *s1, const char *s2, size_t n) {
-	while (n && *s1 && (*s1 == *s2)) {
-		s1++;
-		s2++;
-		n--;
-	}
-	return n == 0 ? 0 : *(unsigned char *)s1 - *(unsigned char *)s2; // UB?
+int strcmp(const char *s1, const char *s2) {
+	size_t i = 0;
+	for (; s1[i] && s2[i] && s1[i] == s2[i]; i++)
+		;
+
+	if (s1[i] == '\0' && s2[i] == '\0')
+		return 0;
+	return s1[i] - s2[i];
 }
 
 size_t strlen(const char *s) {
@@ -29,5 +30,14 @@ void *memcpy(void *dest, const void *src, size_t n) {
 	for (size_t i = 0; i < n; i++) {
 		dest_8[i] = src_8[i];
 	}
+	return dest;
+}
+
+char *strcpy(char *dest, const char *src) {
+	size_t i = 0;
+	for (; src[i]; i++) {
+		dest[i] = src[i];
+	}
+	dest[i] = '\0';
 	return dest;
 }
