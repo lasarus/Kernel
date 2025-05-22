@@ -24,23 +24,23 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	keyboard_init();
 	terminal_init();
 
-	struct inode *root = vfs_resolve(NULL, "/");
-	tmpfs_init(root);
+	struct path_node *root = vfs_resolve(NULL, "/");
+	tmpfs_init(root->inode);
 
-	root->operations->mknod(root, "terminal", INODE_CHAR_DEVICE, MAJOR_TERMINAL, TERMINAL_MINOR_WHITE);
-	root->operations->mknod(root, "terminal_error", INODE_CHAR_DEVICE, MAJOR_TERMINAL, TERMINAL_MINOR_RED);
-	root->operations->mknod(root, "keyboard", INODE_CHAR_DEVICE, MAJOR_KEYBOARD, 0);
+	vfs_mknod(root, "terminal", INODE_CHAR_DEVICE, MAJOR_TERMINAL, TERMINAL_MINOR_WHITE);
+	vfs_mknod(root, "terminal_error", INODE_CHAR_DEVICE, MAJOR_TERMINAL, TERMINAL_MINOR_RED);
+	vfs_mknod(root, "keyboard", INODE_CHAR_DEVICE, MAJOR_KEYBOARD, 0);
 
-	root->operations->mkdir(root, "bin");
-	root->operations->mkdir(root, "home");
+	vfs_mkdir(root, "bin");
+	vfs_mkdir(root, "home");
 
 	struct multiboot_module *modules = (void *)((uint64_t)mb->mods_addr + HIGHER_HALF_OFFSET);
 
 	static const char *names[] = { "/bin/init", "/bin/hello", "/bin/echo", "/bin/cat", "/bin/ls", "/home/README.md" };
 	for (unsigned i = 0; i < mb->mods_count; i++) {
 		uint8_t *data = (uint8_t *)(modules[i].mod_start + HIGHER_HALF_OFFSET);
-		struct file *file = vfs_open(names[i], O_WRONLY | O_CREAT);
-		vfs_write_file(file, data, modules[i].mod_end - modules[i].mod_start);
+		struct file *file = vfs_open(NULL, names[i], O_WRONLY | O_CREAT);
+		vfs_write(file, data, modules[i].mod_end - modules[i].mod_start);
 		vfs_close_file(file);
 	}
 
@@ -49,8 +49,10 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 	int init_pid = scheduler_fork();
 	if (init_pid == 0) {
 		/* We are in the init process now. */
-		struct file *stdin = vfs_open("/keyboard", O_RDONLY), *stdout = vfs_open("/terminal", O_WRONLY),
-					*stderr = vfs_open("/terminal_error", O_WRONLY);
+		current_task->cwd = vfs_resolve(NULL, "/home/");
+
+		struct file *stdin = vfs_open(NULL, "/keyboard", O_RDONLY), *stdout = vfs_open(NULL, "/terminal", O_WRONLY),
+					*stderr = vfs_open(NULL, "/terminal_error", O_WRONLY);
 
 		fd_table_set_standard_streams(current_task->fd_table, stdin, stdout, stderr);
 

@@ -24,5 +24,7 @@ ssize_t getdents64(int fd, void *dirp, size_t count);
 int open(const char *pathname, int flags);
 int close(int fd);
 int wait4(int pid, int *wstatus, int options, struct rusage *rusage);
+int getcwd(char *buffer, size_t size);
+int chdir(const char *path);
 
 #endif

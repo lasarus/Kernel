@@ -36,6 +36,8 @@ struct task {
 
 	int n_waiting;
 	int waiting[MAX_WAITING];
+
+	struct path_node *cwd;
 };
 
 struct task_wait {

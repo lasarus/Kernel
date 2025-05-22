@@ -33,22 +33,18 @@ struct program_header {
 
 // It would be fun to make this a part of userspace some time.
 int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip) {
-	struct inode *inode = vfs_resolve(NULL, path);
+	struct file *file = vfs_open(NULL, path, O_RDONLY);
 
-	if (!inode)
-		return 1;
-
-	if (inode->type != INODE_FILE)
-		return 1;
-
-	struct file *file = vfs_open_inode(inode, O_RDONLY);
 	if (!file)
+		return 1;
+
+	if (file->path_node->inode->type != INODE_FILE)
 		return 1;
 
 	// Read elf header
 	struct header header;
 
-	vfs_read_file(file, &header, sizeof header);
+	vfs_read(file, &header, sizeof header);
 
 	if (!(header.e_ident[0] == 0x7f && header.e_ident[1] == 'E' && header.e_ident[2] == 'L' &&
 	      header.e_ident[3] == 'F')) {
@@ -66,18 +62,19 @@ int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip) {
 		struct program_header ph;
 
 		vfs_lseek(file, header.e_phoff + i * header.e_phentsize, SEEK_SET);
-		vfs_read_file(file, &ph, header.e_phentsize);
+		vfs_read(file, &ph, header.e_phentsize);
 
 		if (ph.p_type == 0 || ph.p_type > 16) {
 		} else if (ph.p_type == 1) { // LOAD
-			if (ph.p_filesz != ph.p_memsz) {
-				print("Not implemented\n");
+			if (ph.p_filesz > ph.p_memsz) {
+				print("Invalid segment\n");
 				hang_kernel();
 			}
 
 			vfs_lseek(file, ph.p_offset, SEEK_SET);
 			memory_allocate_range(table, ph.p_vaddr + ELF_STAGE_OFFSET, NULL, ph.p_memsz, 1);
-			vfs_read_file(file, (void *)(ph.p_vaddr + ELF_STAGE_OFFSET), ph.p_filesz);
+			vfs_read(file, (void *)(ph.p_vaddr + ELF_STAGE_OFFSET), ph.p_filesz);
+			memset((void *)(ph.p_vaddr + ELF_STAGE_OFFSET + ph.p_filesz), 0, ph.p_memsz - ph.p_filesz);
 		} else {
 			print("Invalid program header type!\n");
 			print_hex(ph.p_type);

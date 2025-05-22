@@ -130,6 +130,7 @@ void kprintf(const char *fmt, ...) {
 			case 'd': print_int(va_arg(args, int)); break;
 			case 'x': print_hex(va_arg(args, int)); break;
 			case 'c': print_char(va_arg(args, int)); break;
+			case 'p': print_hex((uint64_t)va_arg(args, void *)); break;
 			default: break;
 			}
 		} else {

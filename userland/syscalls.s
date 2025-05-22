@@ -69,7 +69,20 @@ close:	#int close(int fd);
 	retq
 
 	.global wait4
-wait4: #int wait4(int pid, int *wstatus, int options, struct rusage *rusage)
+wait4: #int wait4(int pid, int *wstatus, int options, struct rusage *rusage);
 	movq $61, %rax
+	syscall
+	retq
+
+	.global getcwd
+getcwd: #int getcwd(char *buffer, size_t size) ;
+	movq $79, %rax
+	syscall
+	retq
+
+
+	.global chdir
+chdir:	#int chdir(const char *path);
+	movq $80, %rax
 	syscall
 	retq

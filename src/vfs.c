@@ -4,7 +4,7 @@
 #include "memory.h"
 #include "vga_text.h"
 
-static struct inode *fs_root;
+static struct path_node *fs_root;
 static struct inode_operations *device_table[MAX_DRIVERS] = { 0 };
 
 struct inode *vfs_new_inode(void) {
@@ -14,9 +14,16 @@ struct inode *vfs_new_inode(void) {
 	return inode;
 }
 
+static struct path_node *vfs_new_path_node(struct path_node *parent, struct inode *inode, const char *name) {
+	struct path_node *path_node = kmalloc(sizeof *path_node);
+	path_node->inode = inode;
+	path_node->parent = parent;
+	strcpy(path_node->name, name);
+	return path_node;
+}
+
 void vfs_init(void) {
-	fs_root = vfs_new_inode();
-	fs_root->type = INODE_DIRECTORY;
+	fs_root = vfs_new_path_node(NULL, vfs_new_inode(), "");
 }
 
 static const char *next_component(const char *path, char *component) {
@@ -32,35 +39,6 @@ static const char *flush_slash(const char *path) {
 	while (*path == '/')
 		path++;
 	return path;
-}
-
-struct inode *vfs_resolve(struct inode *root, const char *path) {
-	const char *opath = path;
-	if (*path == '/') {
-		root = fs_root;
-		path++;
-	}
-
-	if (!root)
-		return NULL;
-
-	path = flush_slash(path);
-
-	while (*path) {
-		if (root->type != INODE_DIRECTORY)
-			return NULL;
-
-		char component[FILENAME_MAX];
-		path = next_component(path, component);
-		root = root->operations->lookup(root, component);
-
-		if (!root)
-			return NULL;
-
-		path = flush_slash(path);
-	}
-
-	return root;
 }
 
 struct fd_table *vfs_init_fd_table(void) {
@@ -103,16 +81,9 @@ void fd_table_set_standard_streams(struct fd_table *fd_table, struct file *stdin
 	fd_table->entries[2].file = stderr;
 }
 
-ssize_t vfs_read_file(struct file *file, void *data, size_t count) {
-	return file->inode->operations->read(file->inode, &file->file_offset, data, count);
-}
-
-ssize_t vfs_write_file(struct file *file, const void *data, size_t count) {
-	return file->inode->operations->write(file->inode, &file->file_offset, data, count);
-}
-
 size_t vfs_lseek(struct file *file, size_t offset, int whence) {
-	size_t size = file->inode->operations->size(file->inode);
+	struct inode *inode = file->path_node->inode;
+	size_t size = inode->operations->size(inode);
 
 	switch (whence) {
 	case SEEK_SET:
@@ -123,12 +94,6 @@ size_t vfs_lseek(struct file *file, size_t offset, int whence) {
 	default: ERROR("Not implemented\n");
 	}
 	return 0;
-}
-
-struct file *vfs_open_inode(struct inode *inode, unsigned char access_mode) {
-	struct file *file = kmalloc(sizeof *file);
-	*file = (struct file) { .ref_count = 1, .inode = inode, .access_mode = access_mode };
-	return file;
 }
 
 void split_path(const char *path, char *parent_path, char *filename) {
@@ -173,25 +138,26 @@ void split_path(const char *path, char *parent_path, char *filename) {
 	}
 }
 
-struct file *vfs_open(const char *path, unsigned char access_mode) {
-	struct inode *inode = vfs_resolve(NULL, path);
-	if (!inode) {
+struct file *vfs_open(struct path_node *root, const char *path, unsigned char access_mode) {
+	struct path_node *path_node = vfs_resolve(root, path);
+	if (!path_node) {
+		if (root)
+			kprintf("Opening %s, with root %s\n", path, root->name);
 		if (!(access_mode & O_CREAT))
 			return NULL;
 
 		char parent_path[PATH_MAX], filename[PATH_MAX];
 		split_path(path, parent_path, filename);
 
-		// TODO: Handle correct root?
-		struct inode *parent = vfs_resolve(NULL, parent_path);
-		if (parent->operations->create(parent, filename)) {
+		struct path_node *parent = vfs_resolve(root, parent_path);
+		if (vfs_create(parent, filename)) {
 			kprintf("Failed to create child node\n");
 			hang_kernel();
 		}
-		struct inode *new_inode = parent->operations->lookup(parent, filename);
-		return vfs_open_inode(new_inode, access_mode);
+		struct path_node *new_path_node = vfs_lookup(parent, filename);
+		return vfs_open_path_node(new_path_node, access_mode);
 	}
-	return vfs_open_inode(inode, access_mode);
+	return vfs_open_path_node(path_node, access_mode);
 }
 
 void vfs_close_file(struct file *file) {
@@ -239,10 +205,10 @@ int vfs_filldir(void *context, const char *name, size_t name_length, unsigned ch
 }
 
 ssize_t vfs_fill_dirent(struct file *file, struct dirent *dirent) {
-	if (file->inode->type != INODE_DIRECTORY)
+	if (file->path_node->inode->type != INODE_DIRECTORY)
 		return -1;
 
-	int result = file->inode->operations->iterate(file->inode, &file->file_offset, vfs_filldir, dirent);
+	int result = vfs_iterate(file->path_node, &file->file_offset, vfs_filldir, dirent);
 
 	if (result == 0)
 		return 0;
@@ -262,4 +228,128 @@ void vfs_mknod_helper(struct inode *inode, enum inode_type type, int major, int 
 	inode->minor = minor;
 
 	inode->operations = device_table[major];
+}
+
+struct path_node *vfs_resolve(struct path_node *root, const char *path) {
+	const char *opath = path;
+	if (*path == '/') {
+		root = fs_root;
+		path++;
+	}
+
+	if (!root)
+		return NULL;
+
+	path = flush_slash(path);
+
+	while (*path) {
+		if (root->inode->type != INODE_DIRECTORY)
+			return NULL;
+
+		char component[FILENAME_MAX];
+		path = next_component(path, component);
+
+		if (strcmp(component, "..") == 0) {
+			if (root->parent)
+				root = root->parent;
+		} else if (strcmp(component, ".") == 0) {
+			// Do nothing.
+		} else {
+			root = vfs_lookup(root, component);
+		}
+
+		if (!root)
+			return NULL;
+
+		path = flush_slash(path);
+	}
+
+	return root;
+}
+
+struct file *vfs_open_path_node(struct path_node *path_node, unsigned char access_mode) {
+	struct file *file = kmalloc(sizeof *file);
+	*file = (struct file) { .ref_count = 1, .path_node = path_node, .access_mode = access_mode };
+	return file;
+}
+
+ssize_t vfs_read(struct file *file, void *data, size_t count) {
+	struct inode *inode = file->path_node->inode;
+	return inode->operations->read(inode, &file->file_offset, data, count);
+}
+
+ssize_t vfs_write(struct file *file, const void *data, size_t count) {
+	struct inode *inode = file->path_node->inode;
+	return inode->operations->write(inode, &file->file_offset, data, count);
+}
+
+ssize_t vfs_size(struct file *file) {
+	struct inode *inode = file->path_node->inode;
+	return inode->operations->size(inode);
+}
+
+int vfs_iterate(struct path_node *path_node, size_t *offset, filldir_t filldir, void *context) {
+	struct inode *inode = path_node->inode;
+	return inode->operations->iterate(inode, offset, filldir, context);
+}
+
+int vfs_create(struct path_node *path_node, const char *name) {
+	struct inode *inode = path_node->inode;
+	return inode->operations->create(inode, name);
+}
+
+int vfs_mkdir(struct path_node *path_node, const char *name) {
+	struct inode *inode = path_node->inode;
+	return inode->operations->mkdir(inode, name);
+}
+
+int vfs_mknod(struct path_node *path_node, const char *name, enum inode_type type, int major, int minor) {
+	struct inode *inode = path_node->inode;
+	return inode->operations->mknod(inode, name, type, major, minor);
+}
+
+struct path_node *vfs_lookup(struct path_node *dir, const char *name) {
+	struct inode *inode = dir->inode;
+	struct inode *child = inode->operations->lookup(inode, name);
+	if (!child)
+		return NULL;
+	return vfs_new_path_node(dir, child, name);
+}
+
+size_t get_path(struct path_node *path_node, char *buffer, size_t size) {
+#define MAX_NEST 256
+	size_t nodes_size = 0;
+	static struct path_node *nodes[MAX_NEST];
+
+	while (path_node) {
+		nodes[nodes_size++] = path_node;
+		if (nodes_size >= MAX_NEST) {
+			return 0;
+		}
+
+		path_node = path_node->parent;
+	}
+
+	size_t written = 0;
+
+	for (size_t i = nodes_size; i-- > 0;) {
+		const char *name = nodes[i]->name;
+		size_t len = strlen(name);
+		for (size_t j = 0; j < len; j++) {
+			buffer[written++] = name[j];
+			if (written >= size)
+				return 0;
+		}
+
+		if (nodes[i]->parent == NULL || i != 0) {
+			buffer[written++] = '/';
+			if (written >= size)
+				return 0;
+		}
+	}
+	buffer[written++] = '\0';
+	if (written >= size)
+		return 0;
+
+	return written;
 }

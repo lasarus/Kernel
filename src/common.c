@@ -41,3 +41,10 @@ char *strcpy(char *dest, const char *src) {
 	dest[i] = '\0';
 	return dest;
 }
+
+void *memset(void *source, int c, size_t n) {
+	for (size_t i = 0; i < n; i++) {
+		((uint8_t *)source)[i] = c;
+	}
+	return source;
+}

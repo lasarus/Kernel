@@ -200,6 +200,7 @@ void setup_fork(struct task *old, struct task *new) {
 	new->is_usermode = 0;
 	new->pid = pid_counter++;
 	new->status = STATUS_RUNNING;
+	new->cwd = old->cwd;
 }
 
 int scheduler_fork(void) {

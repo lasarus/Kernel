@@ -11,19 +11,19 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 		struct fd_table *fd_table = scheduler_get_fd_table();
 		struct file *file = fd_table_get_file(fd_table, arg0);
 
-		return vfs_read_file(file, (void *)arg1, arg2);
+		return vfs_read(file, (void *)arg1, arg2);
 	} break;
 
 	case 1: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
 		struct file *file = fd_table_get_file(fd_table, arg0);
 
-		return vfs_write_file(file, (void *)arg1, arg2);
+		return vfs_write(file, (void *)arg1, arg2);
 	} break;
 
 	case 2: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
-		struct file *file = vfs_open((const char *)arg0, arg1);
+		struct file *file = vfs_open(current_task->cwd, (const char *)arg0, arg1);
 		if (!file)
 			return -1;
 		return fd_table_assign_open_file(fd_table, file);
@@ -56,6 +56,15 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 
 	case 61: {
 		return scheduler_wait_for_pid((int)arg0, (int *)arg1);
+	} break;
+
+	case 79: {
+		return get_path(current_task->cwd, (char *)arg0, arg1);
+	} break;
+
+	case 80: {
+		current_task->cwd = vfs_resolve(current_task->cwd, (char *)arg0);
+		return 0;
 	} break;
 
 	case 217: {

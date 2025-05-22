@@ -31,47 +31,75 @@ int isspace(int c) {
 	return c == ' ' || c == '\t';
 }
 
-void flush_whitespace(const char **ptr) {
-	while (isspace(**ptr))
-		(*ptr)++;
+int atoi(const char *str) {
+	int number = 0;
+	for (size_t i = 0; str[i]; i++) {
+		number *= 10;
+		number += str[i] - '0';
+	}
+	return number;
 }
 
-void execute(const char *command) {
-	char path[256];
-	const char *prefix = "/bin/";
-	int i = 0;
-	while (*prefix) {
-		path[i++] = *prefix;
-		prefix++;
-	}
+const char *flush_whitespace(const char *ptr) {
+	while (isspace(*ptr))
+		ptr++;
+	return ptr;
+}
 
-	flush_whitespace(&command);
-	for (; *command && !isspace(*command); command++) {
-		path[i++] = *command;
+// Variables for holding the parsed command
+static size_t buffer_size = 0;
+static char buffer[1024];
+
+static size_t parts_size = 0;
+const char *parts[128];
+
+void split_by_whitespace(const char *string) {
+	string = flush_whitespace(string);
+	buffer_size = 0;
+	parts_size = 0;
+	while (*string) {
+		parts[parts_size++] = buffer + buffer_size;
+		size_t i = 0;
+		for (; string[i] && !isspace(string[i]); i++) {
+			buffer[buffer_size++] = string[i];
+		}
+		string += i;
+		buffer[buffer_size++] = '\0';
+
+		string = flush_whitespace(string);
 	}
-	path[i] = '\0';
+}
+
+int execute_builtins(void) {
+	if (strcmp(parts[0], "cd") == 0) {
+		if (parts_size >= 2)
+			chdir(parts[1]);
+		else
+			chdir("/home/");
+		return 1;
+	}
+	if (strcmp(parts[0], "exit") == 0) {
+		if (parts_size >= 2)
+			exit(atoi(parts[1]));
+		exit(0);
+	}
+	return 0;
+}
+
+int execute() {
+	char path[256] = "/bin/";
+	int path_size = strlen(path);
+	for (size_t i = 0; parts[0][i]; i++) {
+		path[path_size++] = parts[0][i];
+	}
+	path[path_size++] = '\0';
 
 	const char *argv[128];
-	char argv_buffer[256];
-	int argv_buffer_size = 0;
-	int argv_counter = 0;
-	argv[argv_counter++] = path;
-
-	const char *argv_start = argv_buffer;
-	flush_whitespace(&command);
-	while (*command) {
-		argv[argv_counter++] = &argv_buffer[argv_buffer_size];
-
-		while (*command && !isspace(*command)) {
-			argv_buffer[argv_buffer_size++] = *command;
-			command++;
-		}
-		argv_buffer[argv_buffer_size++] = '\0';
-
-		flush_whitespace(&command);
+	argv[0] = path;
+	for (size_t i = 1; i < parts_size; i++) {
+		argv[i] = parts[i];
 	}
-
-	argv[argv_counter++] = NULL;
+	argv[parts_size] = NULL;
 
 	int pid = fork();
 	if (pid == -1) {
@@ -89,25 +117,40 @@ void execute(const char *command) {
 			exit(1);
 		}
 
-		if (status) {
-			printf("%d ", status);
-		}
+		return status;
 	}
+	return 1;
+}
+
+int parse_and_execute(const char *string) {
+	split_by_whitespace(string);
+
+	if (parts_size == 0)
+		return 0;
+
+	if (execute_builtins()) {
+		return 0;
+	}
+
+	return execute();
 }
 
 int main(int argc, char **argv) {
+	int exec_status = 0;
 	for (;;) {
-		write(1, "$ ", 2);
+		char cwd_buffer[1024];
+		getcwd(cwd_buffer, sizeof cwd_buffer);
+		if (exec_status) {
+			printf("%s %d $ ", cwd_buffer, exec_status);
+		} else {
+			printf("%s $ ", cwd_buffer);
+		}
 		char buffer[256];
 		getsn(buffer, 256);
 
 		int len = strlen(buffer);
 		buffer[len - 1] = '\0';
 
-		if (strcmp("exit", buffer) == 0) {
-			exit(1);
-		} else {
-			execute(buffer);
-		}
+		exec_status = parse_and_execute(buffer);
 	}
 }
