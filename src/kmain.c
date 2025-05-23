@@ -36,7 +36,8 @@ void kmain(uint32_t magic, struct multiboot *mb) {
 
 	struct multiboot_module *modules = (void *)((uint64_t)mb->mods_addr + HIGHER_HALF_OFFSET);
 
-	static const char *names[] = { "/bin/init", "/bin/hello", "/bin/echo", "/bin/cat", "/bin/ls", "/home/README.md" };
+	static const char *names[] = { "/bin/init", "/bin/hello", "/bin/echo",      "/bin/cat",
+		                           "/bin/ls",   "/bin/mkdir", "/home/README.md" };
 	for (unsigned i = 0; i < mb->mods_count; i++) {
 		uint8_t *data = (uint8_t *)(modules[i].mod_start + HIGHER_HALF_OFFSET);
 		struct file *file = vfs_open(NULL, names[i], O_WRONLY | O_CREAT);

@@ -26,5 +26,6 @@ int close(int fd);
 int wait4(int pid, int *wstatus, int options, struct rusage *rusage);
 int getcwd(char *buffer, size_t size);
 int chdir(const char *path);
+int mkdir(const char *path);
 
 #endif

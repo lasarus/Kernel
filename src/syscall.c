@@ -67,6 +67,11 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 		return 0;
 	} break;
 
+	case 83: {
+		vfs_mkdir(current_task->cwd, (char *)arg0);
+		return 0;
+	} break;
+
 	case 217: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
 		struct file *file = fd_table_get_file(fd_table, arg0);

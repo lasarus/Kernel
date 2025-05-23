@@ -86,3 +86,9 @@ chdir:	#int chdir(const char *path);
 	movq $80, %rax
 	syscall
 	retq
+
+	.global mkdir
+mkdir:	 #int mkdir(const char *path);
+	movq $83, %rax
+	syscall
+	retq
