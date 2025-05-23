@@ -1,4 +1,4 @@
-USERLAND := hello shell echo cat ls mkdir
+USERLAND := shell echo cat ls mkdir
 USERLAND_SRCS := $(USERLAND:%=userland/%.c)
 USERLAND_OBJS := $(USERLAND:%=build/%)
 INITRD := build/initrd.tar
