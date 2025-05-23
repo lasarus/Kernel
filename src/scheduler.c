@@ -129,24 +129,20 @@ int get_next_task(void) {
 
 struct task *new_task(void) {
 	// First try to find a dead task to replace.
-	int idx = -1;
-	for (int i = 0; i < n_tasks; i++) {
-		if (tasks[i].status == STATUS_DEAD) {
-			idx = i;
-			break;
-		}
-	}
+	int idx = 0;
+	for (; idx < n_tasks && tasks[idx].status != STATUS_DEAD; idx++)
+		;
 
 	// If none found, add to end.
+	if (idx == n_tasks)
+		n_tasks++;
+
 	if (n_tasks >= MAX_TASKS)
 		ERROR("Too many concurrent tasks.");
 
-	if (idx == -1) {
-		struct task *task = tasks + n_tasks;
-		task->status = STATUS_UNLIMITED_SLEEP;
-		n_tasks++;
-		return task;
-	}
+	tasks[idx] = (struct task) {
+		.status = STATUS_UNLIMITED_SLEEP,
+	};
 
 	return &tasks[idx];
 }
