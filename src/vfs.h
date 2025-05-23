@@ -107,9 +107,12 @@ ssize_t vfs_size(struct file *file);
 struct path_node *vfs_lookup(struct path_node *dir, const char *name);
 int vfs_iterate(struct path_node *path_node, size_t *offset, filldir_t filldir, void *context);
 int vfs_create(struct path_node *path_node, const char *name);
-int vfs_mkdir(struct path_node *path_node, const char *name);
-int vfs_mknod(struct path_node *path_node, const char *name, enum inode_type type, int major, int minor);
+int vfs_mkdir(struct path_node *root, const char *name);
+int vfs_mknod(struct path_node *root, const char *name, enum inode_type type, int major, int minor);
 
 size_t get_path(struct path_node *path_node, char *buffer, size_t size);
+
+// Help function for parsing paths.
+const char *next_component(const char *path, char *component);
 
 #endif

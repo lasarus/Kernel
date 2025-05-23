@@ -26,19 +26,66 @@ void vfs_init(void) {
 	fs_root = vfs_new_path_node(NULL, vfs_new_inode(), "");
 }
 
-static const char *next_component(const char *path, char *component) {
+static const char *flush_slash(const char *path) {
+	while (*path == '/')
+		path++;
+	return path;
+}
+
+const char *next_component(const char *path, char *component) {
 	size_t i = 0;
 	for (; path[i] && path[i] != '/'; i++) {
 		component[i] = path[i];
 	}
 	component[i] = '\0';
-	return path + i;
+	path = path + i;
+	path = flush_slash(path);
+	return path;
 }
 
-static const char *flush_slash(const char *path) {
-	while (*path == '/')
-		path++;
-	return path;
+static struct path_node *split_path(struct path_node *root, const char *path, char *filename) {
+	char parent_path[PATH_MAX];
+	parent_path[0] = '.';
+	parent_path[1] = '\0';
+	filename[0] = '\0';
+
+	if (path == NULL)
+		return NULL;
+
+	size_t filename_start = 0;
+	for (size_t i = 0; path[i]; i++) {
+		if (path[i] == '/' && path[i + 1]) {
+			filename_start = i + 1;
+		}
+	}
+
+	// Copy the to the filename from index_of_last_slash and forward.
+	size_t filename_index = 0;
+	for (size_t i = filename_start; path[i] && path[i] != '/'; i++) {
+		filename[filename_index++] = path[i];
+	}
+	filename[filename_index++] = '\0';
+
+	// Find last index of parent_path, by starting at filename_start, and moving
+	// backward until no slashes are found any more.
+	size_t parent_path_end = filename_start;
+	while (parent_path_end-- > 0)
+		if (path[parent_path_end] != '/')
+			break;
+
+	parent_path_end++;
+
+	if (parent_path_end == 0) {
+		parent_path[0] = path[0] == '/' ? '/' : '.';
+		parent_path[1] = '\0';
+	} else {
+		for (size_t i = 0; i < parent_path_end; i++) {
+			parent_path[i] = path[i];
+		}
+		parent_path[parent_path_end] = '\0';
+	}
+
+	return vfs_resolve(root, parent_path);
 }
 
 struct fd_table *vfs_init_fd_table(void) {
@@ -96,60 +143,14 @@ size_t vfs_lseek(struct file *file, size_t offset, int whence) {
 	return 0;
 }
 
-void split_path(const char *path, char *parent_path, char *filename) {
-	parent_path[0] = '.';
-	parent_path[1] = '\0';
-	filename[0] = '\0';
-
-	if (path == NULL)
-		return;
-
-	size_t filename_start = 0;
-	for (size_t i = 0; path[i]; i++) {
-		if (path[i] == '/' && path[i + 1]) {
-			filename_start = i + 1;
-		}
-	}
-
-	// Copy the to the filename from index_of_last_slash and forward.
-	size_t filename_index = 0;
-	for (size_t i = filename_start; path[i] && path[i] != '/'; i++) {
-		filename[filename_index++] = path[i];
-	}
-	filename[filename_index++] = '\0';
-
-	// Find last index of parent_path, by starting at filename_start, and moving
-	// backward until no slashes are found any more.
-	size_t parent_path_end = filename_start;
-	while (parent_path_end-- > 0)
-		if (path[parent_path_end] != '/')
-			break;
-
-	parent_path_end++;
-
-	if (parent_path_end == 0) {
-		parent_path[0] = path[0] == '/' ? '/' : '.';
-		parent_path[1] = '\0';
-	} else {
-		for (size_t i = 0; i < parent_path_end; i++) {
-			parent_path[i] = path[i];
-		}
-		parent_path[parent_path_end] = '\0';
-	}
-}
-
 struct file *vfs_open(struct path_node *root, const char *path, unsigned char access_mode) {
 	struct path_node *path_node = vfs_resolve(root, path);
 	if (!path_node) {
-		if (root)
-			kprintf("Opening %s, with root %s\n", path, root->name);
 		if (!(access_mode & O_CREAT))
 			return NULL;
 
-		char parent_path[PATH_MAX], filename[PATH_MAX];
-		split_path(path, parent_path, filename);
-
-		struct path_node *parent = vfs_resolve(root, parent_path);
+		char filename[PATH_MAX];
+		struct path_node *parent = split_path(root, path, filename);
 		if (vfs_create(parent, filename)) {
 			kprintf("Failed to create child node\n");
 			hang_kernel();
@@ -260,8 +261,6 @@ struct path_node *vfs_resolve(struct path_node *root, const char *path) {
 
 		if (!root)
 			return NULL;
-
-		path = flush_slash(path);
 	}
 
 	return root;
@@ -298,14 +297,18 @@ int vfs_create(struct path_node *path_node, const char *name) {
 	return inode->operations->create(inode, name);
 }
 
-int vfs_mkdir(struct path_node *path_node, const char *name) {
+int vfs_mkdir(struct path_node *root, const char *name) {
+	char filename[FILENAME_MAX];
+	struct path_node *path_node = split_path(root, name, filename);
 	struct inode *inode = path_node->inode;
-	return inode->operations->mkdir(inode, name);
+	return inode->operations->mkdir(inode, filename);
 }
 
-int vfs_mknod(struct path_node *path_node, const char *name, enum inode_type type, int major, int minor) {
+int vfs_mknod(struct path_node *root, const char *name, enum inode_type type, int major, int minor) {
+	char filename[FILENAME_MAX];
+	struct path_node *path_node = split_path(root, name, filename);
 	struct inode *inode = path_node->inode;
-	return inode->operations->mknod(inode, name, type, major, minor);
+	return inode->operations->mknod(inode, filename, type, major, minor);
 }
 
 struct path_node *vfs_lookup(struct path_node *dir, const char *name) {

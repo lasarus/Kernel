@@ -139,10 +139,14 @@ static int tmpfs_create(struct inode *dir, const char *name) {
 
 static int tmpfs_mkdir(struct inode *dir, const char *name) {
 	if (dir->type != INODE_DIRECTORY)
-		return 1;
+		return -1;
+	// Check path already exists
+	if (tmpfs_lookup(dir, name))
+		return -1;
+
 	struct inode *inode = new_inode(dir, name);
 	if (!inode)
-		return 1;
+		return -1;
 
 	inode->type = INODE_DIRECTORY;
 	inode->operations = &operations;
