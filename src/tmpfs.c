@@ -2,7 +2,6 @@
 #include "kmalloc.h"
 #include "memory.h"
 #include "vfs.h"
-#include "vga_text.h"
 
 struct dir_entry {
 	char name[FILENAME_MAX];
@@ -18,7 +17,7 @@ struct dir_header {
 
 struct file_header {
 	void *data;
-	uint64_t size;
+	uint64_t size, capacity;
 };
 
 static ssize_t tmpfs_read(struct inode *inode, size_t *offset, void *data, size_t count);
@@ -69,13 +68,26 @@ static ssize_t tmpfs_read(struct inode *inode, size_t *offset, void *data, size_
 
 static ssize_t tmpfs_write(struct inode *inode, size_t *offset, const void *data, size_t count) {
 	if (inode->type != INODE_FILE)
-		return 0;
+		return -1;
 	struct file_header *header = inode->data;
-	if (header->size != 0)
-		return 0;
-	header->size = count;
-	header->data = kmalloc(header->size);
-	memcpy(header->data, data, count);
+	if (*offset != header->size)
+		return -1;
+
+	if (header->data) {
+		header->size += count;
+		if (header->size > header->capacity) {
+			header->capacity *= 2;
+			header->data = krealloc(header->data, header->size);
+		}
+		memcpy((uint8_t *)header->data + *offset, data, count);
+		*offset += count;
+	} else {
+		header->size = count;
+		header->capacity = round_up_4096(count);
+		header->data = kmalloc(header->capacity);
+		memcpy(header->data, data, count);
+		*offset += count;
+	}
 	return (ssize_t)count;
 }
 
