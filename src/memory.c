@@ -12,10 +12,10 @@ struct memory_list {
 	void *entries[510];
 };
 
-_Static_assert(sizeof(struct memory_list) == 4096, "Invalid size of memory_list.");
+_Static_assert(sizeof(struct memory_list) == PAGE_SIZE, "Invalid size of memory_list.");
 
 struct memory_list *head;
-_Alignas(4096) struct memory_list last_elem;
+_Alignas(PAGE_SIZE) struct memory_list last_elem;
 
 void *memory_alloc(void) {
 	if (head->n_entries == 0) {
@@ -64,7 +64,7 @@ struct pt {
 	} entries[512];
 };
 
-_Alignas(4096) static struct pdpt kernel_pdpt_table_large; // Maps first 512GiB.
+_Alignas(PAGE_SIZE) static struct pdpt kernel_pdpt_table_large; // Maps first 512GiB.
 
 struct pml4 *current_pml4;
 
@@ -135,7 +135,7 @@ struct tss {
 	uint16_t io_map_base_address;
 } __attribute__((packed));
 
-_Alignas(4096) struct tss tss;
+_Alignas(PAGE_SIZE) struct tss tss;
 
 _Static_assert(sizeof(struct gdt_entry) == 8, "");
 _Static_assert(sizeof(struct tss_descriptor) == 16, "");
@@ -178,7 +178,7 @@ struct pml4 *memory_init(struct multiboot *mb) {
 			continue;
 
 		uint64_t start = round_up_4096(mmap->base_addr);
-		for (; start < mmap->length + mmap->base_addr - 4096; start += 4096) {
+		for (; start < mmap->length + mmap->base_addr - PAGE_SIZE; start += PAGE_SIZE) {
 			if (start < first_free)
 				continue;
 			memory_free(PHYSICAL_TO_VIRTUAL(start));
@@ -221,7 +221,7 @@ void copy_pt(struct pt *dest, struct pt *src) {
 		uint8_t *src_memory = GET_TABLE(src->entries[i].flags_and_address);
 		uint8_t *dest_memory = memory_alloc();
 
-		for (int i = 0; i < 4096; i++) {
+		for (int i = 0; i < PAGE_SIZE; i++) {
 			dest_memory[i] = src_memory[i];
 		}
 
@@ -421,11 +421,11 @@ void memory_allocate_range(struct pml4 *table, uint64_t base, uint8_t *data, uin
 		table = PHYSICAL_TO_VIRTUAL((void *)get_cr3());
 
 	// base must be aligned to 4KiB page.
-	for (uint64_t page = 0; page < size; page += 4096) {
+	for (uint64_t page = 0; page < size; page += PAGE_SIZE) {
 		uint8_t *new_page = memory_alloc();
 
 		if (data) {
-			for (unsigned i = 0; i < 4096; i++) {
+			for (unsigned i = 0; i < PAGE_SIZE; i++) {
 				if (page + i >= size)
 					break;
 				new_page[i] = data[page + i];
@@ -485,7 +485,7 @@ static void delete_page(struct pml4 *table, uint64_t address) {
 void memory_deallocate_range(uint64_t base, uint64_t size) {
 	// TODO: Refactor memory subsystem to be more sane.
 	struct pml4 *current_pml4 = PHYSICAL_TO_VIRTUAL((void *)get_cr3());
-	for (uint64_t page = 0; page < size; page += 4096) {
+	for (uint64_t page = 0; page < size; page += PAGE_SIZE) {
 		delete_page(current_pml4, base + page);
 	}
 }

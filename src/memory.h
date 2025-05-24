@@ -3,6 +3,8 @@
 
 #include "multiboot.h"
 
+#define PAGE_SIZE 4096
+
 // Returns pointer to beginning of a free 4KiB chunk of memory.
 void *memory_alloc(void);
 void memory_free(void *ptr);

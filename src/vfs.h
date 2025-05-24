@@ -65,8 +65,6 @@ struct fd_table { // File descriptor table
 	} entries[4088 / sizeof(struct fd_table_entry)];
 };
 
-_Static_assert(sizeof(struct fd_table) <= 4096, "");
-
 struct fd_table *vfs_init_fd_table(void);
 struct fd_table *vfs_copy_fd_table(struct fd_table *src);
 struct file *fd_table_get_file(struct fd_table *fd_table, int fd);

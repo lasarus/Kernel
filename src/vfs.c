@@ -1,7 +1,6 @@
 #include "vfs.h"
 #include "common.h"
 #include "kmalloc.h"
-#include "memory.h"
 #include "vga_text.h"
 
 static struct path_node *fs_root;
@@ -89,19 +88,16 @@ static struct path_node *split_path(struct path_node *root, const char *path, ch
 }
 
 struct fd_table *vfs_init_fd_table(void) {
-	struct fd_table *table = memory_alloc();
-
-	table->n_entries = 0;
-
+	struct fd_table *table = kmalloc(sizeof *table);
+	*table = (struct fd_table) { .n_entries = 0 };
 	return table;
 }
 
 struct fd_table *vfs_copy_fd_table(struct fd_table *src) {
-	struct fd_table *table = memory_alloc();
+	struct fd_table *table = kmalloc(sizeof *table);
+	*table = *src;
 
-	table->n_entries = src->n_entries;
 	for (int i = 0; i < table->n_entries; i++) {
-		table->entries[i] = src->entries[i];
 		if (table->entries[i].file)
 			table->entries[i].file->ref_count++;
 	}

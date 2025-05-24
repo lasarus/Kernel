@@ -2,6 +2,7 @@
 #include "common.h"
 #include "interval.h"
 #include "memory.h"
+#include "vga_text.h"
 #include <stdint.h>
 
 struct free_slot {
@@ -15,7 +16,7 @@ struct slab {
 };
 
 #define OBJECT_SIZE(SLAB) (1u << (5 + (SLAB)->index))
-#define OBJECT_COUNT(SLAB) (4096 / OBJECT_SIZE(SLAB) - 1)
+#define OBJECT_COUNT(SLAB) (PAGE_SIZE / OBJECT_SIZE(SLAB) - 1)
 
 _Static_assert(sizeof(struct slab) <= 32, "");
 // 32 is the smallest allowed object size.
@@ -94,7 +95,7 @@ static void *slab_allocate(struct slab_cache *cache) {
 }
 
 static void slab_free(void *ptr) {
-	struct slab *slab = (struct slab *)((intptr_t)ptr & ~(4096 - 1));
+	struct slab *slab = (struct slab *)((intptr_t)ptr & ~(PAGE_SIZE - 1));
 	struct free_slot **head = &slab->first_slot;
 	struct free_slot *free_slot = ptr;
 	free_slot->next = *head;
@@ -120,7 +121,7 @@ static void slab_free(void *ptr) {
 }
 
 static size_t slab_get_size(void *ptr) {
-	return OBJECT_SIZE((struct slab *)((intptr_t)ptr & ~(4096 - 1)));
+	return OBJECT_SIZE((struct slab *)((intptr_t)ptr & ~(PAGE_SIZE - 1)));
 }
 
 static void *kmalloc_small(size_t size) {
@@ -147,9 +148,13 @@ static uint64_t kmalloc_random(void) {
 	return x * 0x2545F4914F6CDD1DULL;
 }
 
-static void *kmalloc_large(size_t size) {
+static void *kmalloc_large(size_t size, size_t alignment) {
+	// Alignment must be at least a page.
+	if (alignment < PAGE_SIZE)
+		alignment = PAGE_SIZE;
+	size_t alignment_mask = ~(alignment - 1);
 	for (int i = 0; i < 32; i++) {
-		uint64_t low = LARGE_ALLOC_OFFSET | (kmalloc_random() & 0xffffff000);
+		uint64_t low = LARGE_ALLOC_OFFSET | (kmalloc_random() & 0xfffffffff & alignment_mask);
 
 		if (interval_exists(low, size))
 			continue;
@@ -185,7 +190,7 @@ void kmalloc_init(void) {
 }
 
 void *kmalloc(size_t size) {
-	return size > 2048 ? kmalloc_large(size) : kmalloc_small(size);
+	return size > 2048 ? kmalloc_large(size, PAGE_SIZE) : kmalloc_small(size);
 }
 
 void kfree(void *ptr) {
@@ -205,6 +210,8 @@ void *krealloc(void *ptr, size_t size) {
 }
 
 void *kaligned_alloc(size_t alignment, size_t size) {
-	// TODO.
-	return NULL;
+	size_t largest = alignment; // Largest of alignment and size.
+	if (size > largest)
+		largest = size;
+	return alignment > 2048 ? kmalloc_large(size, alignment) : kmalloc_small(largest);
 }

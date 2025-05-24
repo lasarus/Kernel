@@ -9,7 +9,7 @@ struct dir_entry {
 	struct inode *inode;
 };
 
-#define N_DIR_ENTRIES (4096 / sizeof(struct dir_entry))
+#define N_DIR_ENTRIES (PAGE_SIZE / sizeof(struct dir_entry))
 
 struct dir_header {
 	int n_entries;
@@ -43,7 +43,6 @@ static struct inode_operations operations = {
 };
 
 _Static_assert(N_DIR_ENTRIES > 14, "");
-_Static_assert(sizeof(struct dir_header) <= 4096, "");
 
 static struct inode *new_inode(struct inode *dir, const char *name) {
 	struct dir_header *data = dir->data;
@@ -74,8 +73,9 @@ static ssize_t tmpfs_write(struct inode *inode, size_t *offset, const void *data
 	struct file_header *header = inode->data;
 	if (header->size != 0)
 		return 0;
-	header->data = (void *)data; // TODO: THIS IS BAD.
 	header->size = count;
+	header->data = kmalloc(header->size);
+	memcpy(header->data, data, count);
 	return (ssize_t)count;
 }
 
@@ -150,7 +150,7 @@ static int tmpfs_mkdir(struct inode *dir, const char *name) {
 
 	inode->type = INODE_DIRECTORY;
 	inode->operations = &operations;
-	struct dir_header *header = memory_alloc();
+	struct dir_header *header = kmalloc(sizeof *header);
 	*header = (struct dir_header) {
 		.n_entries = 0,
 	};
@@ -174,7 +174,7 @@ static int tmpfs_mknod(struct inode *dir, const char *name, enum inode_type type
 void tmpfs_init(struct inode *root) {
 	root->type = INODE_DIRECTORY;
 	root->operations = &operations;
-	struct dir_header *header = memory_alloc();
+	struct dir_header *header = kmalloc(sizeof *header);
 	*header = (struct dir_header) {
 		.n_entries = 0,
 	};
