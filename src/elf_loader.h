@@ -4,9 +4,6 @@
 #include "common.h"
 #include "memory.h"
 
-#define ELF_STAGE_INDEX 509
-#define ELF_STAGE_OFFSET PML4_PAGE(ELF_STAGE_INDEX)
-
 int elf_loader_stage(struct pml4 *table, const char *path, uint64_t *rip);
 
 #endif

@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include "vga_text.h"
+
 #include <stddef.h>
 
 struct memory_list {
@@ -262,7 +264,7 @@ void copy_pdpt(struct pdpt *dest, struct pdpt *src) {
 
 void copy_pml4(struct pml4 *dest, struct pml4 *src) {
 	for (int i = 0; i < 512; i++) {
-		if (!src->entries[i].flags_and_address || i == 511 || i == 256) {
+		if (!src->entries[i].flags_and_address || i == 511 || i == 256 || i == LARGE_ALLOC_INDEX) {
 			dest->entries[i] = src->entries[i];
 			continue;
 		}
@@ -326,7 +328,7 @@ void delete_pdpt(struct pdpt *table) {
 
 void delete_pml4(struct pml4 *table, int only_user) {
 	for (int i = 0; i < 512; i++) {
-		if (!table->entries[i].flags_and_address || i == 511 || i == 256) {
+		if (!table->entries[i].flags_and_address || i == 511 || i == 256 || i == LARGE_ALLOC_INDEX) {
 			continue;
 		}
 
@@ -414,8 +416,11 @@ void memory_page_add(struct pml4 *table, uint64_t virtual_addr, void *high_addr,
 }
 
 void memory_allocate_range(struct pml4 *table, uint64_t base, uint8_t *data, uint64_t size, int user) {
-	// base must be aligned to 4KiB page.
+	// TODO: Remove this when memory subsystem is more sane.
+	if (!table)
+		table = PHYSICAL_TO_VIRTUAL((void *)get_cr3());
 
+	// base must be aligned to 4KiB page.
 	for (uint64_t page = 0; page < size; page += 4096) {
 		uint8_t *new_page = memory_alloc();
 
@@ -431,6 +436,58 @@ void memory_allocate_range(struct pml4 *table, uint64_t base, uint8_t *data, uin
 	}
 
 	reload_cr3();
+}
+
+static void delete_page(struct pml4 *table, uint64_t address) {
+	uint16_t pml4_index = (address >> 39) & 0x1FF;
+	uint16_t pdpt_index = (address >> 30) & 0x1FF;
+	uint16_t pd_index = (address >> 21) & 0x1FF;
+	uint16_t pt_index = (address >> 12) & 0x1FF;
+
+	struct pdpt *pdpt = GET_TABLE(table->entries[pml4_index].flags_and_address);
+	struct pdpt *pd = GET_TABLE(pdpt->entries[pdpt_index].flags_and_address);
+	struct pdpt *pt = GET_TABLE(pd->entries[pd_index].flags_and_address);
+
+	uint8_t *src_memory = GET_TABLE(pt->entries[pt_index].flags_and_address);
+	memory_free(src_memory);
+
+	pt->entries[pt_index].flags_and_address = 0;
+	int delete_pt = 1;
+	for (int i = 0; i < 512; i++) {
+		if (pt->entries[i].flags_and_address) {
+			delete_pt = 0;
+			break;
+		}
+	}
+
+	if (!delete_pt)
+		return;
+
+	memory_free(pt);
+	pd->entries[pd_index].flags_and_address = 0;
+	int delete_pd = 1;
+	for (int i = 0; i < 512; i++) {
+		if (pd->entries[i].flags_and_address) {
+			delete_pd = 0;
+			break;
+		}
+	}
+
+	if (!delete_pd)
+		return;
+
+	memory_free(pd);
+	pdpt->entries[pdpt_index].flags_and_address = 0;
+
+	// For now, keep pdpt.
+}
+
+void memory_deallocate_range(uint64_t base, uint64_t size) {
+	// TODO: Refactor memory subsystem to be more sane.
+	struct pml4 *current_pml4 = PHYSICAL_TO_VIRTUAL((void *)get_cr3());
+	for (uint64_t page = 0; page < size; page += 4096) {
+		delete_page(current_pml4, base + page);
+	}
 }
 
 void set_kernel_stack(uint64_t stack) {

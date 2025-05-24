@@ -13,3 +13,6 @@ Cpp11BracedListStyle: false
 AllowShortFunctionsOnASingleLine: false
 SpaceBeforeCpp11BracedList: true
 AlignTrailingComments: false
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterPlacementOperator: false # delete() and new() are functions in C.

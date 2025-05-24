@@ -1,4 +1,6 @@
 #include "kmalloc.h"
+#include "common.h"
+#include "interval.h"
 #include "memory.h"
 #include <stdint.h>
 
@@ -28,7 +30,9 @@ static struct slab_cache slab_caches[7];
 
 static struct slab *new_slab(struct slab_cache *cache) {
 	struct slab *slab = memory_alloc();
-	slab->index = cache->index;
+	*slab = (struct slab) {
+		.index = cache->index,
+	};
 
 	struct free_slot **slot = &slab->first_slot;
 	for (unsigned i = 1; i < OBJECT_COUNT(slab) + 1; i++) {
@@ -115,17 +119,11 @@ static void slab_free(void *ptr) {
 	}
 }
 
-void kmalloc_init(void) {
-	for (unsigned i = 0; i < sizeof slab_caches / sizeof *slab_caches; i++) {
-		slab_init(&slab_caches[i], i);
-	}
+static size_t slab_get_size(void *ptr) {
+	return OBJECT_SIZE((struct slab *)((intptr_t)ptr & ~(4096 - 1)));
 }
 
-void *kmalloc(size_t size) {
-	if (size > 2048) {
-		return NULL; // TODO: Not implemented.
-	}
-
+static void *kmalloc_small(size_t size) {
 	// Round up to nearest power of two.
 	struct slab_cache *cache = NULL;
 	for (unsigned i = 0; i < sizeof slab_caches / sizeof *slab_caches; i++) {
@@ -140,15 +138,73 @@ void *kmalloc(size_t size) {
 	return NULL;
 }
 
+static uint64_t kmalloc_random(void) {
+	// xorshift64star, from Wikipedia.
+	static uint64_t x = 0x123456789;
+	x ^= x >> 12;
+	x ^= x << 25;
+	x ^= x >> 27;
+	return x * 0x2545F4914F6CDD1DULL;
+}
+
+static void *kmalloc_large(size_t size) {
+	for (int i = 0; i < 32; i++) {
+		uint64_t low = LARGE_ALLOC_OFFSET | (kmalloc_random() & 0xffffff000);
+
+		if (interval_exists(low, size))
+			continue;
+
+		interval_add(low, size);
+
+		memory_allocate_range(NULL, low, NULL, size, 0);
+
+		return (void *)low;
+	}
+
+	ERROR("Probably out of virtual memory.\n");
+	return NULL;
+}
+
+static size_t get_size_of_allocation(void *ptr) {
+	if ((uintptr_t)ptr >= LARGE_ALLOC_OFFSET) {
+		return interval_size((uint64_t)ptr);
+	} else {
+		return slab_get_size(ptr);
+	}
+}
+
+static void kfree_large(void *ptr) {
+	uint64_t size = interval_remove((uint64_t)ptr);
+	memory_deallocate_range((uint64_t)ptr, size);
+}
+
+void kmalloc_init(void) {
+	for (unsigned i = 0; i < sizeof slab_caches / sizeof *slab_caches; i++) {
+		slab_init(&slab_caches[i], i);
+	}
+}
+
+void *kmalloc(size_t size) {
+	return size > 2048 ? kmalloc_large(size) : kmalloc_small(size);
+}
+
 void kfree(void *ptr) {
-	slab_free(ptr);
+	if ((uintptr_t)ptr >= LARGE_ALLOC_OFFSET) {
+		kfree_large(ptr);
+	} else {
+		slab_free(ptr);
+	}
+}
+
+void *krealloc(void *ptr, size_t size) {
+	void *new_area = kmalloc(size);
+	size_t old_size = get_size_of_allocation(ptr);
+	memcpy(new_area, ptr, old_size);
+	kfree(ptr);
+	return new_area;
 }
 
 void *kaligned_alloc(size_t alignment, size_t size) {
 	// TODO.
-	return NULL;
-}
-
-void *krealloc(void *ptr, size_t size) {
 	return NULL;
 }

@@ -51,6 +51,8 @@ struct timespec {
 	long tv_nsec;
 };
 
+void print(const char *str);
+void print_int(int num);
 #define ERROR(STR, ...)      \
 	do {                     \
 		print("\nError: ");  \

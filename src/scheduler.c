@@ -155,7 +155,7 @@ void scheduler_init(struct pml4 *kernel_table) {
 		.pid = pid_counter++,
 	};
 
-	set_kernel_stack(KERNEL_STACK_POS + KERNEL_STACK_SIZE);
+	set_kernel_stack(KERNEL_STACK_OFFSET + KERNEL_STACK_SIZE);
 }
 
 // Scheduling is about fairly distributing CPU time among the tasks.
