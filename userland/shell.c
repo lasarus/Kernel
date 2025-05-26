@@ -94,12 +94,18 @@ int execute(void) {
 	}
 	path[path_size++] = '\0';
 
+	const char *pipe_to = NULL;
+
+	int argv_size = 0;
 	const char *argv[128];
-	argv[0] = path;
+	argv[argv_size++] = path;
 	for (size_t i = 1; i < parts_size; i++) {
-		argv[i] = parts[i];
+		if (parts[i][0] == '>')
+			pipe_to = parts[i] + 1;
+		else
+			argv[argv_size++] = parts[i];
 	}
-	argv[parts_size] = NULL;
+	argv[argv_size++] = NULL;
 
 	int pipe_fds[2];
 	pipe(pipe_fds);
@@ -118,12 +124,17 @@ int execute(void) {
 	} else {
 		close(pipe_fds[1]);
 
+		int output_fd = 1;
+		if (pipe_to)
+			output_fd = open(pipe_to, O_WRONLY | O_CREAT);
 		char buffer[4096];
 		ssize_t nread;
 		while ((nread = read(pipe_fds[0], buffer, sizeof(buffer))) > 0) {
-			write(1, buffer, nread);
+			write(output_fd, buffer, nread);
 		}
 		close(pipe_fds[0]);
+		if (pipe_to)
+			close(output_fd);
 
 		int status;
 

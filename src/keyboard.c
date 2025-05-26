@@ -144,6 +144,10 @@ static void remove_char_from_buffer(void) {
 }
 
 static int toupper(int c) {
+	if (c == ',')
+		return '<';
+	if (c == '.')
+		return '>';
 	return (unsigned)c - 'a' < 26 ? c ^ 32 : c;
 }
 
