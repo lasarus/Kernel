@@ -86,7 +86,7 @@ int execute_builtins(void) {
 	return 0;
 }
 
-int execute() {
+int execute(void) {
 	char path[256] = "/bin/";
 	int path_size = strlen(path);
 	for (size_t i = 0; parts[0][i]; i++) {
@@ -101,14 +101,30 @@ int execute() {
 	}
 	argv[parts_size] = NULL;
 
+	int pipe_fds[2];
+	pipe(pipe_fds);
+
 	int pid = fork();
 	if (pid == -1) {
 		printf("Could not fork?\n");
 	} else if (pid == 0) {
+		close(pipe_fds[0]);
+		dup2(pipe_fds[1], 1);
+		close(pipe_fds[1]);
+
 		execve(path, argv, NULL);
 		printf("Could not execute: \"%s\"\n", path);
 		exit(1);
 	} else {
+		close(pipe_fds[1]);
+
+		char buffer[4096];
+		ssize_t nread;
+		while ((nread = read(pipe_fds[0], buffer, sizeof(buffer))) > 0) {
+			write(1, buffer, nread);
+		}
+		close(pipe_fds[0]);
+
 		int status;
 
 		int waited = wait4(pid, &status, 0, NULL);

@@ -80,7 +80,6 @@ getcwd: #int getcwd(char *buffer, size_t size) ;
 	syscall
 	retq
 
-
 	.global chdir
 chdir:	#int chdir(const char *path);
 	movq $80, %rax
@@ -90,5 +89,17 @@ chdir:	#int chdir(const char *path);
 	.global mkdir
 mkdir:	 #int mkdir(const char *path);
 	movq $83, %rax
+	syscall
+	retq
+
+	.global pipe
+pipe:	#int pipe(int *fds);
+	movq $22, %rax
+	syscall
+	retq
+
+	.global dup2
+dup2:	#int dup2(int old_fd, int new_fd) ;
+	movq $33, %rax
 	syscall
 	retq

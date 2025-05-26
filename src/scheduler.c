@@ -195,6 +195,7 @@ void setup_fork(struct task *old, struct task *new) {
 	new->fd_table = vfs_copy_fd_table(old->fd_table);
 	new->is_usermode = 0;
 	new->pid = pid_counter++;
+	new->parent = old->pid;
 	new->status = STATUS_RUNNING;
 	new->cwd = old->cwd;
 }
@@ -211,10 +212,11 @@ int scheduler_fork(void) {
 }
 
 int scheduler_wait(struct task_wait *wait) {
-	if (wait->pid != -1)
+	if (wait->active)
 		return 0;
 
 	wait->pid = current_task->pid;
+	wait->active = 1;
 
 	current_task->status = STATUS_UNLIMITED_SLEEP;
 
@@ -236,7 +238,7 @@ static struct task *get_task_from_pid(int pid) {
 }
 
 void scheduler_unwait(struct task_wait *wait) {
-	if (wait->pid == -1)
+	if (!wait->active)
 		return;
 
 	struct task *task = get_task_from_pid(wait->pid);
@@ -244,19 +246,22 @@ void scheduler_unwait(struct task_wait *wait) {
 	if (task)
 		task->status = STATUS_RUNNING;
 
-	wait->pid = -1;
+	*wait = (struct task_wait) { 0 };
 }
 
 void scheduler_exit(int error_code) {
 	(void)error_code;
-	current_task->status = STATUS_CLEANUP;
+	current_task->status = STATUS_ZOMBIE;
+	fd_table_delete(current_task->fd_table);
+	current_task->fd_table = NULL;
+	current_task->exit_status = error_code;
 
-	for (int i = 0; i < current_task->n_waiting; i++) {
-		struct task *task = get_task_from_pid(current_task->waiting[i]);
-		if (task->status != STATUS_WAIT_FOR_PID)
-			continue;
-		task->wait_status = error_code;
-		task->status = STATUS_RUNNING;
+	if (current_task->parent_is_waiting) {
+		struct task *parent_task = get_task_from_pid(current_task->parent);
+		if (parent_task->status == STATUS_WAIT_FOR_PID) {
+			parent_task->wait_status = error_code;
+			parent_task->status = STATUS_RUNNING;
+		}
 	}
 
 	scheduler_update();
@@ -269,7 +274,19 @@ int scheduler_wait_for_pid(int pid, int *result) {
 
 	current_task->status = STATUS_WAIT_FOR_PID;
 
-	task->waiting[task->n_waiting++] = current_task->pid;
+	if (task->parent != current_task->pid) {
+		kprintf("Process %d tried to wait on non-child %d, correct parent is %d\n", current_task->pid, task->pid,
+		        task->parent);
+		return -1;
+	}
+
+	if (task->status == STATUS_ZOMBIE) {
+		*result = task->exit_status;
+		task->status = STATUS_CLEANUP;
+		return 0;
+	}
+
+	task->parent_is_waiting = 1;
 
 	scheduler_update();
 

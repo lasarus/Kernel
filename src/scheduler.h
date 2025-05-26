@@ -13,6 +13,7 @@ enum {
 	STATUS_RUNNING = 0,
 	STATUS_CLOCK_SLEEP,
 	STATUS_UNLIMITED_SLEEP,
+	STATUS_ZOMBIE,
 	STATUS_CLEANUP,
 	STATUS_WAIT_FOR_PID,
 	STATUS_DEAD,
@@ -34,13 +35,14 @@ struct task {
 
 	struct fd_table *fd_table;
 
-	int n_waiting;
-	int waiting[MAX_WAITING];
+	int parent_is_waiting;
+	int exit_status;
 
 	struct path_node *cwd;
 };
 
 struct task_wait {
+	int active;
 	int pid;
 };
 

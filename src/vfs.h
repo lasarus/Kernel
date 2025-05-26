@@ -8,6 +8,7 @@
 #define MAX_DRIVERS 256
 
 struct inode;
+struct file;
 
 typedef int (*filldir_t)(void *context, const char *name, size_t name_length, unsigned char type);
 
@@ -29,9 +30,15 @@ struct inode_operations {
 	int (*mknod)(struct inode *dir, const char *name, enum inode_type type, int major, int minor);
 };
 
+struct file_operations {
+	int (*open)(struct file *file, struct inode *inode);
+	int (*close)(struct file *file, struct inode *inode);
+};
+
 struct inode {
 	enum inode_type type;
 	struct inode_operations *operations;
+	struct file_operations *file_operations;
 	void *data;
 	int major, minor;
 };
@@ -49,6 +56,7 @@ struct file {
 	unsigned char access_mode; // Should be read/write/read-write.
 	unsigned char dead; // Should be read/write/read-write.
 	struct path_node *path_node;
+	struct file_operations *operations;
 };
 
 void vfs_init(void);
@@ -65,17 +73,22 @@ struct fd_table { // File descriptor table
 	} entries[4088 / sizeof(struct fd_table_entry)];
 };
 
+struct path_node *vfs_create_path_node(struct inode *inode, const char *name);
+
 struct fd_table *vfs_init_fd_table(void);
 struct fd_table *vfs_copy_fd_table(struct fd_table *src);
+void fd_table_delete(struct fd_table *fd_table);
 struct file *fd_table_get_file(struct fd_table *fd_table, int fd);
 void fd_table_set_standard_streams(struct fd_table *fd_table, struct file *stdin, struct file *stdout,
                                    struct file *stderr);
 int fd_table_assign_open_file(struct fd_table *fd_table, struct file *file);
+void fd_table_close(struct fd_table *fd_table, int fd);
+void fd_table_duplicate(struct fd_table *fd_table, int old_fd, int new_fd);
 
 enum {
 	O_RDONLY = 1 << 0,
 	O_WRONLY = 1 << 1,
-	O_CREAT = 1 << 2,
+	O_CREAT = 1 << 6,
 	O_RDWR = O_RDONLY | O_WRONLY,
 };
 

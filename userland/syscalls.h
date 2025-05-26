@@ -1,6 +1,13 @@
 #ifndef SYSCALLS_H
 #define SYSCALLS_H
 
+enum {
+	O_RDONLY = 1 << 0,
+	O_WRONLY = 1 << 1,
+	O_CREAT = 1 << 6,
+	O_RDWR = O_RDONLY | O_WRONLY,
+};
+
 #define NULL 0
 typedef long ssize_t;
 
@@ -27,5 +34,7 @@ int wait4(int pid, int *wstatus, int options, struct rusage *rusage);
 int getcwd(char *buffer, size_t size);
 int chdir(const char *path);
 int mkdir(const char *path);
+int pipe(int *fds);
+int dup2(int old_fd, int new_fd);
 
 #endif

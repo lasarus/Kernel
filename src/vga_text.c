@@ -80,6 +80,11 @@ void print(const char *str) {
 }
 
 void print_int(int num) {
+	int negative = 0;
+	if (num < 0) {
+		negative = 1;
+		num = -num;
+	}
 	char buffer[11];
 	int idx = 0;
 	for (; num; num /= 10)
@@ -89,6 +94,9 @@ void print_int(int num) {
 		buffer[0] = '0';
 		idx++;
 	}
+
+	if (negative)
+		print_char('-');
 
 	for (idx--; idx >= 0; idx--) {
 		print_char(buffer[idx]);

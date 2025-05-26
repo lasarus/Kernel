@@ -105,6 +105,15 @@ struct fd_table *vfs_copy_fd_table(struct fd_table *src) {
 	return table;
 }
 
+void fd_table_delete(struct fd_table *fd_table) {
+	for (int i = 0; i < fd_table->n_entries; i++) {
+		struct file *file = fd_table->entries[i].file;
+		if (file)
+			vfs_close_file(file);
+	}
+	kfree(fd_table);
+}
+
 struct file *fd_table_get_file(struct fd_table *fd_table, int fd) {
 	if (fd > fd_table->n_entries) {
 		print("Error: invalid fd: ");
@@ -159,8 +168,12 @@ struct file *vfs_open(struct path_node *root, const char *path, unsigned char ac
 
 void vfs_close_file(struct file *file) {
 	file->ref_count--;
-	if (file->ref_count <= 0)
+	if (file->ref_count <= 0) {
+		if (file->operations && file->operations->close)
+			file->operations->close(file, file->path_node->inode);
+
 		kfree(file);
+	}
 }
 
 int fd_table_assign_open_file(struct fd_table *fd_table, struct file *file) {
@@ -264,7 +277,19 @@ struct path_node *vfs_resolve(struct path_node *root, const char *path) {
 
 struct file *vfs_open_path_node(struct path_node *path_node, unsigned char access_mode) {
 	struct file *file = kmalloc(sizeof *file);
-	*file = (struct file) { .ref_count = 1, .path_node = path_node, .access_mode = access_mode };
+	struct inode *inode = path_node->inode;
+	*file = (struct file) {
+		.ref_count = 1,
+		.path_node = path_node,
+		.access_mode = access_mode,
+		.operations = inode->file_operations,
+	};
+
+	if (file->operations && file->operations->open)
+		file->operations->open(file, inode);
+
+	if ((access_mode & O_WRONLY) && inode->operations->size)
+		file->file_offset = inode->operations->size(inode);
 	return file;
 }
 
@@ -351,4 +376,36 @@ size_t get_path(struct path_node *path_node, char *buffer, size_t size) {
 		return 0;
 
 	return written;
+}
+
+struct path_node *vfs_create_path_node(struct inode *inode, const char *name) {
+	struct path_node *path_node = kmalloc(sizeof *path_node);
+	*path_node = (struct path_node) {
+		.inode = inode,
+		.parent = NULL,
+	};
+	strcpy(path_node->name, name);
+	return path_node;
+}
+
+void fd_table_close(struct fd_table *fd_table, int fd) {
+	if (fd >= fd_table->n_entries)
+		return;
+
+	struct file *file = fd_table->entries[fd].file;
+	if (!file)
+		return;
+
+	vfs_close_file(file);
+	fd_table->entries[fd].file = NULL;
+
+	if (fd == fd_table->n_entries - 1)
+		fd_table->n_entries--;
+}
+
+void fd_table_duplicate(struct fd_table *fd_table, int old_fd, int new_fd) {
+	fd_table_close(fd_table, new_fd);
+
+	fd_table->entries[old_fd].file->ref_count++;
+	fd_table->entries[new_fd] = fd_table->entries[old_fd];
 }

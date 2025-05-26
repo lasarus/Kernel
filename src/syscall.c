@@ -1,4 +1,5 @@
 #include "common.h"
+#include "pipe.h"
 #include "scheduler.h"
 #include "vfs.h"
 #include "vga_text.h"
@@ -31,8 +32,30 @@ uint64_t syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uin
 
 	case 3: {
 		struct fd_table *fd_table = scheduler_get_fd_table();
-		struct file *file = fd_table_get_file(fd_table, arg0);
-		vfs_close_file(file);
+		fd_table_close(fd_table, (int)arg0);
+		return 0;
+	} break;
+
+	case 22: {
+		struct fd_table *fd_table = scheduler_get_fd_table();
+		int *fds = (int *)arg0;
+		struct file *read = NULL, *write = NULL;
+		create_pipe(&read, &write);
+
+		if (!read || !write)
+			return -1;
+
+		fds[0] = fd_table_assign_open_file(fd_table, read);
+		fds[1] = fd_table_assign_open_file(fd_table, write);
+
+		return 0;
+	} break;
+
+	case 33: {
+		int old_fd = arg0;
+		int new_fd = arg1;
+		struct fd_table *fd_table = scheduler_get_fd_table();
+		fd_table_duplicate(fd_table, old_fd, new_fd);
 		return 0;
 	} break;
 

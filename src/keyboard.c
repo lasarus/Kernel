@@ -1,4 +1,5 @@
 #include "keyboard.h"
+#include "circular_buffer.h"
 #include "driver_major_numbers.h"
 #include "scheduler.h"
 #include "vfs.h"
@@ -111,41 +112,12 @@ static unsigned char caps_lock = 0;
 static int line_buffer_idx = 0;
 static char line_buffer[256];
 
-static int circular_buffer_start = 0, circular_buffer_idx = 0, available = 4095;
-static uint8_t circular_buffer[4096];
-
 static struct task_wait buffer_wait = TASK_WAIT_DEFAULT;
 
-// TODO: Don't fail when buffer is longer than 4096.
-static void circular_buffer_add(char c) {
-	if (!available)
-		return;
-
-	if (circular_buffer_idx >= (int)COUNTOF(circular_buffer)) {
-		circular_buffer_idx = 0;
-	}
-
-	circular_buffer[circular_buffer_idx++] = c;
-	available--;
-}
-
-static int circular_buffer_take(char *c) {
-	if (available == 4095)
-		return 0;
-
-	if (circular_buffer_start >= (int)COUNTOF(circular_buffer)) {
-		circular_buffer_start = 0;
-	}
-
-	*c = circular_buffer[circular_buffer_start++];
-	available++;
-
-	return 1;
-}
+struct circular_buffer circular_buffer;
 
 static void flush_line(void) {
-	for (int i = 0; i < line_buffer_idx; i++)
-		circular_buffer_add(line_buffer[i]);
+	circular_buffer_write(&circular_buffer, (uint8_t *)line_buffer, line_buffer_idx);
 	line_buffer_idx = 0;
 
 	scheduler_unwait(&buffer_wait);
@@ -207,21 +179,10 @@ void keyboard_feed_scancode(unsigned char scancode) {
 }
 
 static ssize_t keyboard_file_read(struct inode *inode, size_t *offset, void *data, size_t count) {
-	ssize_t read = 0;
+	while (!circular_buffer_size(&circular_buffer))
+		scheduler_wait(&buffer_wait);
 
-	uint8_t *user_buffer = data;
-
-	while (available < 4095 || scheduler_wait(&buffer_wait)) {
-		char c;
-		while ((size_t)read < count && circular_buffer_take(&c)) {
-			user_buffer[read++] = c;
-		}
-
-		if ((size_t)read == count)
-			break;
-	}
-
-	return read;
+	return circular_buffer_read(&circular_buffer, data, count);
 }
 
 static ssize_t keyboard_file_write(struct inode *inode, size_t *offset, const void *data, size_t count) {
@@ -235,5 +196,6 @@ static struct inode_operations operations = {
 };
 
 void keyboard_init(void) {
+	circular_buffer_init(&circular_buffer, 128);
 	vfs_register_driver(MAJOR_KEYBOARD, &operations);
 }
