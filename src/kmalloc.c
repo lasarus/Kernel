@@ -2,7 +2,7 @@
 #include "common.h"
 #include "interval.h"
 #include "memory.h"
-#include "vga_text.h"
+#include "page_allocator.h"
 #include <stdint.h>
 
 struct free_slot {
@@ -30,7 +30,7 @@ static struct slab_cache slab_caches[7];
 // 32, 64, 128, 256, 512, 1024, 2048
 
 static struct slab *new_slab(struct slab_cache *cache) {
-	struct slab *slab = memory_alloc();
+	struct slab *slab = (struct slab *)allocate_page();
 	*slab = (struct slab) {
 		.index = cache->index,
 	};

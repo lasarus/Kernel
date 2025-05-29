@@ -1,10 +1,11 @@
 #include "common.h"
 
-uint64_t round_up_4096(uint64_t val) {
-	uint64_t r = val & 0xfff;
-	if (r)
-		val = ((val & ~0xfff) + 0x1000);
-	return val;
+uintptr_t round_down_4096(uintptr_t address) {
+	return address & ~(uintptr_t)(4096 - 1);
+}
+
+uintptr_t round_up_4096(uintptr_t address) {
+	return (address + 4095) & ~(uintptr_t)(4096 - 1);
 }
 
 int strcmp(const char *s1, const char *s2) {

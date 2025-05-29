@@ -1,44 +1,7 @@
 #include "memory.h"
-
 #include "common.h"
-
-#include "vga_text.h"
-
-#include <stddef.h>
-
-struct memory_list {
-	struct memory_list *next;
-	uint64_t n_entries;
-	void *entries[510];
-};
-
-_Static_assert(sizeof(struct memory_list) == PAGE_SIZE, "Invalid size of memory_list.");
-
-struct memory_list *head;
-_Alignas(PAGE_SIZE) struct memory_list last_elem;
-
-void *memory_alloc(void) {
-	if (head->n_entries == 0) {
-		void *chunk = head;
-		head = head->next;
-		return chunk;
-	}
-	head->n_entries--;
-	return head->entries[head->n_entries];
-}
-
-void memory_free(void *ptr) {
-	// Assume ptr is not present in the memory list.
-
-	if (head->n_entries == 510) {
-		struct memory_list *prev_head = head;
-		head = ptr;
-		head->next = prev_head;
-		head->n_entries = 0;
-	} else {
-		head->entries[head->n_entries++] = ptr;
-	}
-}
+#include "multiboot.h"
+#include "page_allocator.h"
 
 struct pml4 {
 	struct {
@@ -66,23 +29,17 @@ struct pt {
 
 _Alignas(PAGE_SIZE) static struct pdpt kernel_pdpt_table_large; // Maps first 512GiB.
 
-struct pml4 *current_pml4;
+void set_up_higher_identity_paging(void) {
+	for (unsigned i = 0; i < 512; i++)
+		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x4 | 0x80) + ((uint64_t)i << 30);
 
-void init_kernel_pml4(struct pml4 *pml4) {
+	struct pml4 *pml4 = (void *)(get_cr3() + HIGHER_HALF_OFFSET);
+
 	pml4->entries[256].flags_and_address =
 		(0x1 | 0x2 | 0x4) + ((uint64_t)&kernel_pdpt_table_large - HIGHER_HALF_OFFSET);
 
 	pml4->entries[0].flags_and_address = 0;
 }
-
-void set_up_higher_identity_paging(void) {
-	for (unsigned i = 0; i < 512; i++)
-		kernel_pdpt_table_large.entries[i].flags_and_address = (0x1 | 0x2 | 0x4 | 0x80) + ((uint64_t)i << 30);
-
-	init_kernel_pml4(current_pml4);
-}
-
-extern void *_end;
 
 // See section 4.8.1 in AMD64 Architecture Programmer's Manual, Volume 2.
 struct gdt_entry {
@@ -157,33 +114,18 @@ static struct gdt {
 };
 
 struct pml4 *memory_init(struct multiboot *mb) {
-	// Offset by HIGHER_HALF_OFFSET due to the initial paging.
-	current_pml4 = (void *)(get_cr3() + HIGHER_HALF_OFFSET);
-
-	head = &last_elem;
-
-	uint64_t first_free = (uint64_t)&_end;
-	for (unsigned i = 0; i < mb->mods_count; i++) {
-		struct multiboot_module *modules = (void *)(uint64_t)mb->mods_addr;
-		if (modules[i].mod_end > first_free)
-			first_free = modules[i].mod_end;
-	}
-
 	set_up_higher_identity_paging();
-	uint64_t mmap_addr = mb->mmap_addr + HIGHER_HALF_OFFSET;
-	for (unsigned i = 0; i < mb->mmap_length; i++) {
-		struct multiboot_mmap *mmap = (void *)mmap_addr;
-		mmap += i;
-		if (mmap->type != 1)
-			continue;
 
-		uint64_t start = round_up_4096(mmap->base_addr);
-		for (; start < mmap->length + mmap->base_addr - PAGE_SIZE; start += PAGE_SIZE) {
-			if (start < first_free)
-				continue;
-			memory_free(PHYSICAL_TO_VIRTUAL(start));
-		}
-	}
+	extern void *_end;
+	uint64_t first_free = (uint64_t)&_end;
+	struct multiboot_module *modules = (void *)(mb->mods_addr + HIGHER_HALF_OFFSET);
+	for (unsigned i = 0; i < mb->mods_count; i++)
+		first_free = MAX(first_free, modules[i].mod_end);
+
+	struct multiboot_mmap *mmaps = (void *)(mb->mmap_addr + HIGHER_HALF_OFFSET);
+	for (unsigned i = 0; i < mb->mmap_length; i++)
+		if (mmaps[i].type == 1)
+			page_allocator_add_range(MAX(mmaps[i].base_addr, first_free), mmaps[i].base_addr + mmaps[i].length);
 
 	uint64_t tss_base = (uint64_t)&tss;
 	uint32_t tss_limit = sizeof tss - 1;
@@ -197,11 +139,11 @@ struct pml4 *memory_init(struct multiboot *mb) {
 
 	load_gdt(sizeof gdt - 1, (void *)&gdt);
 
-	return PHYSICAL_TO_VIRTUAL((uintptr_t)current_pml4 - HIGHER_HALF_OFFSET);
+	return PHYSICAL_TO_VIRTUAL(get_cr3());
 }
 
 struct pml4 *memory_new_page_table(void) {
-	struct pml4 *new_table = memory_alloc();
+	struct pml4 *new_table = allocate_page();
 	for (unsigned i = 0; i < 512; i++)
 		new_table->entries[i].flags_and_address = 0;
 
@@ -219,7 +161,7 @@ void copy_pt(struct pt *dest, struct pt *src) {
 		}
 
 		uint8_t *src_memory = GET_TABLE(src->entries[i].flags_and_address);
-		uint8_t *dest_memory = memory_alloc();
+		uint8_t *dest_memory = allocate_page();
 
 		for (int i = 0; i < PAGE_SIZE; i++) {
 			dest_memory[i] = src_memory[i];
@@ -238,7 +180,7 @@ void copy_pd(struct pd *dest, struct pd *src) {
 		}
 
 		struct pt *src_pt = GET_TABLE(src->entries[i].flags_and_address);
-		struct pt *dst_pt = memory_alloc();
+		struct pt *dst_pt = allocate_page();
 
 		copy_pt(dst_pt, src_pt);
 
@@ -254,7 +196,7 @@ void copy_pdpt(struct pdpt *dest, struct pdpt *src) {
 		}
 
 		struct pd *src_pd = GET_TABLE(src->entries[i].flags_and_address);
-		struct pd *dst_pd = memory_alloc();
+		struct pd *dst_pd = allocate_page();
 
 		copy_pd(dst_pd, src_pd);
 
@@ -270,7 +212,7 @@ void copy_pml4(struct pml4 *dest, struct pml4 *src) {
 		}
 
 		struct pdpt *src_pdpt = GET_TABLE(src->entries[i].flags_and_address);
-		struct pdpt *dst_pdpt = memory_alloc();
+		struct pdpt *dst_pdpt = allocate_page();
 
 		copy_pdpt(dst_pdpt, src_pdpt);
 
@@ -294,7 +236,7 @@ void delete_pt(struct pt *table) {
 
 		void *memory = GET_TABLE(table->entries[i].flags_and_address);
 
-		memory_free(memory);
+		free_page(memory);
 	}
 }
 
@@ -306,7 +248,7 @@ void delete_pd(struct pd *table) {
 		struct pt *pt = GET_TABLE(table->entries[i].flags_and_address);
 
 		delete_pt(pt);
-		memory_free(pt);
+		free_page(pt);
 
 		table->entries[i].flags_and_address = 0;
 	}
@@ -320,7 +262,7 @@ void delete_pdpt(struct pdpt *table) {
 		struct pd *pd = GET_TABLE(table->entries[i].flags_and_address);
 
 		delete_pd(pd);
-		memory_free(pd);
+		free_page(pd);
 
 		table->entries[i].flags_and_address = 0;
 	}
@@ -338,7 +280,7 @@ void delete_pml4(struct pml4 *table, int only_user) {
 		struct pdpt *pdpt = GET_TABLE(table->entries[i].flags_and_address);
 
 		delete_pdpt(pdpt);
-		memory_free(pdpt);
+		free_page(pdpt);
 
 		table->entries[i].flags_and_address = 0;
 	}
@@ -356,7 +298,7 @@ void memory_page_table_delete_pdpt(struct pml4 *old, int idx) {
 	struct pdpt *pdpt = GET_TABLE(old->entries[idx].flags_and_address);
 
 	delete_pdpt(pdpt);
-	memory_free(pdpt);
+	free_page(pdpt);
 
 	old->entries[idx].flags_and_address = 0;
 
@@ -382,7 +324,7 @@ void memory_page_add(struct pml4 *table, uint64_t virtual_addr, void *high_addr,
 	if (pml4->entries[d].flags_and_address & 1) {
 		pdpt = PHYSICAL_TO_VIRTUAL(pml4->entries[d].flags_and_address & 0x00Cffffffffff000);
 	} else {
-		pdpt = memory_alloc();
+		pdpt = allocate_page();
 		for (unsigned i = 0; i < 512; i++)
 			pdpt->entries[i].flags_and_address = 0;
 		pml4->entries[d].flags_and_address = (0x1 | 0x2 | 0x4) + VIRTUAL_TO_PHYSICAL(pdpt);
@@ -392,7 +334,7 @@ void memory_page_add(struct pml4 *table, uint64_t virtual_addr, void *high_addr,
 	if (pdpt->entries[c].flags_and_address & 1) {
 		pd = PHYSICAL_TO_VIRTUAL(pdpt->entries[c].flags_and_address & 0x00Cffffffffff000);
 	} else {
-		pd = memory_alloc();
+		pd = allocate_page();
 		for (unsigned i = 0; i < 512; i++)
 			pd->entries[i].flags_and_address = 0;
 		pdpt->entries[c].flags_and_address = (0x1 | 0x2 | 0x4) + VIRTUAL_TO_PHYSICAL(pd);
@@ -402,7 +344,7 @@ void memory_page_add(struct pml4 *table, uint64_t virtual_addr, void *high_addr,
 	if (pd->entries[b].flags_and_address & 1) {
 		pt = PHYSICAL_TO_VIRTUAL(pd->entries[b].flags_and_address & 0x00Cffffffffff000);
 	} else {
-		pt = memory_alloc();
+		pt = allocate_page();
 		for (unsigned i = 0; i < 512; i++)
 			pt->entries[i].flags_and_address = 0;
 		pd->entries[b].flags_and_address = (0x1 | 0x2 | 0x4) + VIRTUAL_TO_PHYSICAL(pt);
@@ -418,11 +360,11 @@ void memory_page_add(struct pml4 *table, uint64_t virtual_addr, void *high_addr,
 void memory_allocate_range(struct pml4 *table, uint64_t base, uint8_t *data, uint64_t size, int user) {
 	// TODO: Remove this when memory subsystem is more sane.
 	if (!table)
-		table = PHYSICAL_TO_VIRTUAL((void *)get_cr3());
+		table = PHYSICAL_TO_VIRTUAL(get_cr3());
 
 	// base must be aligned to 4KiB page.
 	for (uint64_t page = 0; page < size; page += PAGE_SIZE) {
-		uint8_t *new_page = memory_alloc();
+		uint8_t *new_page = allocate_page();
 
 		if (data) {
 			for (unsigned i = 0; i < PAGE_SIZE; i++) {
@@ -449,7 +391,7 @@ static void delete_page(struct pml4 *table, uint64_t address) {
 	struct pdpt *pt = GET_TABLE(pd->entries[pd_index].flags_and_address);
 
 	uint8_t *src_memory = GET_TABLE(pt->entries[pt_index].flags_and_address);
-	memory_free(src_memory);
+	free_page(src_memory);
 
 	pt->entries[pt_index].flags_and_address = 0;
 	int delete_pt = 1;
@@ -463,7 +405,7 @@ static void delete_page(struct pml4 *table, uint64_t address) {
 	if (!delete_pt)
 		return;
 
-	memory_free(pt);
+	free_page(pt);
 	pd->entries[pd_index].flags_and_address = 0;
 	int delete_pd = 1;
 	for (int i = 0; i < 512; i++) {
@@ -476,7 +418,7 @@ static void delete_page(struct pml4 *table, uint64_t address) {
 	if (!delete_pd)
 		return;
 
-	memory_free(pd);
+	free_page(pd);
 	pdpt->entries[pdpt_index].flags_and_address = 0;
 
 	// For now, keep pdpt.
@@ -484,7 +426,7 @@ static void delete_page(struct pml4 *table, uint64_t address) {
 
 void memory_deallocate_range(uint64_t base, uint64_t size) {
 	// TODO: Refactor memory subsystem to be more sane.
-	struct pml4 *current_pml4 = PHYSICAL_TO_VIRTUAL((void *)get_cr3());
+	struct pml4 *current_pml4 = PHYSICAL_TO_VIRTUAL(get_cr3());
 	for (uint64_t page = 0; page < size; page += PAGE_SIZE) {
 		delete_page(current_pml4, base + page);
 	}

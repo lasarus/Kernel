@@ -18,11 +18,13 @@ void sleep_kernel(void);
 void load_idt(uint16_t limit, void *base);
 void load_gdt(uint16_t limit, void *base);
 void load_tss(uint16_t gdt_entry);
-uint64_t round_up_4096(uint64_t val);
 void load_cr3(uint64_t pml4_ptr);
 void reload_cr3(void);
 uint64_t get_cr2(void);
 uint64_t get_cr3(void);
+
+uintptr_t round_down_4096(uintptr_t address);
+uintptr_t round_up_4096(uintptr_t address);
 
 void print_interrupt(void);
 
@@ -31,8 +33,8 @@ void print_interrupt(void);
 #define GIBIBYTE 0x40000000
 #define MEBIBYTE 0x100000
 #define KIBIBYTE 0x400
-#define HIGHER_HALF_OFFSET 0xFFFFFFFFC0000000
-#define HIGHER_HALF_IDENTITY 0xFFFF800000000000
+#define HIGHER_HALF_OFFSET 0xFFFFFFFFC0000000ULL
+#define HIGHER_HALF_IDENTITY 0xFFFF800000000000ULL
 
 #define offsetof(type, member) __builtin_offsetof(type, member)
 
@@ -63,5 +65,8 @@ void print_int(int num);
 		print(STR);          \
 		hang_kernel();       \
 	} while (0)
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 #endif
