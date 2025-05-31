@@ -57,7 +57,6 @@ void scheduler_update(void);
 void scheduler_init(struct pml4 *kernel_table);
 int scheduler_execve(const char *filename, const char *const *argv, const char *const *envp);
 
-void scheduler_suspend(void);
 void scheduler_sleep(uint64_t ticks);
 int scheduler_fork(void);
 void scheduler_exit(int error_code);

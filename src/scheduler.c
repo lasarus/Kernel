@@ -174,10 +174,6 @@ void scheduler_update(void) {
 	switch_task_to(task);
 }
 
-void scheduler_suspend(void) {
-	switch_task_to(tasks + 0);
-}
-
 void scheduler_sleep(uint64_t ticks) {
 	current_task->status = STATUS_CLOCK_SLEEP;
 	current_task->sleep_until = timer + ticks;
